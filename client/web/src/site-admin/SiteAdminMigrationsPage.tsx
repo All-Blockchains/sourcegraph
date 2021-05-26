@@ -274,7 +274,7 @@ interface MigrationNodeProps {
 }
 
 const MigrationNode: React.FunctionComponent<MigrationNodeProps> = ({ node, now }) => (
-    <>
+    <React.Fragment key={node.id}>
         <span className="site-admin-migration-node__separator" />
 
         <div className="d-flex flex-column site-admin-migration-node__information">
@@ -351,21 +351,23 @@ const MigrationNode: React.FunctionComponent<MigrationNodeProps> = ({ node, now 
                 defaultExpanded={false}
             >
                 <div className="pt-2 site-admin-migration-node-errors__grid">
-                    {node.errors.map(error => (
-                        <>
-                            <div className="py-1 pr-2">
-                                <Timestamp date={error.created} now={now} />
-                            </div>
+                    {node.errors
+                        .map((error, index) => ({ ...error, index }))
+                        .map(error => (
+                            <React.Fragment key={error.index}>
+                                <div className="py-1 pr-2">
+                                    <Timestamp date={error.created} now={now} />
+                                </div>
 
-                            <span className="py-1 pl-2 site-admin-migration-node-errors__grid-code">
-                                <code>{error.message}</code>
-                            </span>
-                        </>
-                    ))}
+                                <span className="py-1 pl-2 site-admin-migration-node-errors__grid-code">
+                                    <code>{error.message}</code>
+                                </span>
+                            </React.Fragment>
+                        ))}
                 </div>
             </Collapsible>
         )}
-    </>
+    </React.Fragment>
 )
 
 /** A major.minor representation of a Sourcegraph version. */
