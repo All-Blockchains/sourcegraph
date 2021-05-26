@@ -214,7 +214,7 @@ var testMigrations = []Migration{
 		Team:           "search",
 		Component:      "zoekt-index",
 		Description:    "rot13 all the indexes for security",
-		Introduced:     "3.25.0",
+		Introduced:     NewVersion(3, 25),
 		Deprecated:     nil,
 		Progress:       0,
 		Created:        testTime,
@@ -228,8 +228,8 @@ var testMigrations = []Migration{
 		Team:           "codeintel",
 		Component:      "lsif_data_documents",
 		Description:    "denormalize counts",
-		Introduced:     "3.26.0",
-		Deprecated:     strPtr("3.28.0"),
+		Introduced:     NewVersion(3, 26),
+		Deprecated:     newVersionPtr(3, 28),
 		Progress:       0.5,
 		Created:        testTime.Add(time.Hour * 1),
 		LastUpdated:    timePtr(testTime.Add(time.Hour * 2)),
@@ -245,7 +245,7 @@ var testMigrations = []Migration{
 		Team:           "platform",
 		Component:      "lsif_data_documents",
 		Description:    "gzip payloads",
-		Introduced:     "3.24.0",
+		Introduced:     NewVersion(3, 24),
 		Deprecated:     nil,
 		Progress:       0.4,
 		Created:        testTime.Add(time.Hour * 3),
@@ -265,7 +265,7 @@ var testEnterpriseMigrations = []Migration{
 		Team:           "search",
 		Component:      "zoekt-index",
 		Description:    "rot13 all the indexes for security (but with more enterprise)",
-		Introduced:     "3.25",
+		Introduced:     NewVersion(3, 25),
 		Deprecated:     nil,
 		Progress:       0,
 		Created:        testTime,
@@ -279,8 +279,8 @@ var testEnterpriseMigrations = []Migration{
 		Team:           "codeintel",
 		Component:      "lsif_data_documents",
 		Description:    "denormalize counts (but with more enterprise)",
-		Introduced:     "3.26",
-		Deprecated:     strPtr("3.28"),
+		Introduced:     NewVersion(3, 26),
+		Deprecated:     newVersionPtr(3, 28),
 		Progress:       0.5,
 		Created:        testTime.Add(time.Hour * 1),
 		LastUpdated:    timePtr(testTime.Add(time.Hour * 2)),
@@ -292,6 +292,11 @@ var testEnterpriseMigrations = []Migration{
 
 func strPtr(s string) *string        { return &s }
 func timePtr(t time.Time) *time.Time { return &t }
+
+func newVersionPtr(major, minor int) *Version {
+	v := NewVersion(major, minor)
+	return &v
+}
 
 func testStore(t *testing.T, db dbutil.DB) *Store {
 	store := NewStoreWithDB(db)
@@ -312,28 +317,38 @@ func testStore(t *testing.T, db dbutil.DB) *Store {
 }
 
 func insertMigration(store *Store, migration Migration, enterpriseOnly bool) error {
+	var deprecatedMajor, deprecatedMinor *int
+	if migration.Deprecated != nil {
+		deprecatedMajor = &migration.Deprecated.Major
+		deprecatedMinor = &migration.Deprecated.Minor
+	}
+
 	query := sqlf.Sprintf(`
 		INSERT INTO out_of_band_migrations (
 			id,
 			team,
 			component,
 			description,
-			introduced,
-			deprecated,
+			introduced_version_major,
+			introduced_version_minor,
+			deprecated_version_major,
+			deprecated_version_minor,
 			progress,
 			created,
 			last_updated,
 			non_destructive,
 			apply_reverse,
 			is_enterprise
-		) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+		) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 	`,
 		migration.ID,
 		migration.Team,
 		migration.Component,
 		migration.Description,
-		migration.Introduced,
-		dbutil.NullString{S: migration.Deprecated},
+		migration.Introduced.Major,
+		migration.Introduced.Minor,
+		deprecatedMajor,
+		deprecatedMinor,
 		migration.Progress,
 		migration.Created,
 		migration.LastUpdated,

@@ -19,8 +19,8 @@ type Migration struct {
 	Team           string
 	Component      string
 	Description    string
-	Introduced     string
-	Deprecated     *string
+	Introduced     Version
+	Deprecated     *Version
 	Progress       float64
 	Created        time.Time
 	LastUpdated    *time.Time
@@ -60,6 +60,7 @@ func scanMigrations(rows *sql.Rows, queryErr error) (_ []Migration, err error) {
 	for rows.Next() {
 		var message string
 		var created *time.Time
+		var deprecatedMajor, deprecatedMinor *int
 		value := Migration{Errors: []MigrationError{}}
 
 		if err := rows.Scan(
@@ -67,8 +68,10 @@ func scanMigrations(rows *sql.Rows, queryErr error) (_ []Migration, err error) {
 			&value.Team,
 			&value.Component,
 			&value.Description,
-			&value.Introduced,
-			&value.Deprecated,
+			&value.Introduced.Major,
+			&value.Introduced.Minor,
+			&deprecatedMajor,
+			&deprecatedMinor,
 			&value.Progress,
 			&value.Created,
 			&value.LastUpdated,
@@ -85,6 +88,13 @@ func scanMigrations(rows *sql.Rows, queryErr error) (_ []Migration, err error) {
 				Message: message,
 				Created: *created,
 			})
+		}
+
+		if deprecatedMajor != nil && deprecatedMinor != nil {
+			value.Deprecated = &Version{
+				Major: *deprecatedMajor,
+				Minor: *deprecatedMinor,
+			}
 		}
 
 		if n := len(values); n > 0 && values[n-1].ID == value.ID {
@@ -150,8 +160,10 @@ SELECT
 	m.team,
 	m.component,
 	m.description,
-	m.introduced,
-	m.deprecated,
+	m.introduced_version_major,
+	m.introduced_version_minor,
+	m.deprecated_version_major,
+	m.deprecated_version_minor,
 	m.progress,
 	m.created,
 	m.last_updated,
@@ -190,8 +202,10 @@ SELECT
 	m.team,
 	m.component,
 	m.description,
-	m.introduced,
-	m.deprecated,
+	m.introduced_version_major,
+	m.introduced_version_minor,
+	m.deprecated_version_major,
+	m.deprecated_version_minor,
 	m.progress,
 	m.created,
 	m.last_updated,
