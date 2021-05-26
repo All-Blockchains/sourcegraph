@@ -28,21 +28,29 @@ func newOutOfBandMigrationRunner(ctx context.Context, db *sql.DB) *oobmigration.
 		Registerer: prometheus.DefaultRegisterer,
 	})
 
+	validateOutOfBandMigrationRunner(ctx, outOfBandMigrationRunner)
+	return outOfBandMigrationRunner
+}
+
+func validateOutOfBandMigrationRunner(ctx context.Context, outOfBandMigrationRunner *oobmigration.Runner) {
+	if version.IsDev(version.Version()) {
+		log15.Warn("Skipping out-of-band migrations check (dev mode)", "version", version.Version())
+		return
+	}
 	currentSemver, err := semver.NewVersion(version.Version())
 	if err != nil {
 		log15.Warn("Skipping out-of-band migrations check", "version", version.Version(), "error", err)
-		return outOfBandMigrationRunner
+		return
 	}
 
 	firstVersion, err := backend.GetFirstServiceVersion(ctx, "frontend")
 	if err != nil {
 		log.Fatalf("Failed to retrieve first instance version: %v", err)
 	}
-
 	firstVersionSemver, err := semver.NewVersion(firstVersion)
 	if err != nil {
 		log15.Warn("Skipping out-of-band migrations check", "version", version.Version(), "error", err)
-		return outOfBandMigrationRunner
+		return
 	}
 
 	// Ensure that there are no unfinished migrations that would cause inconsistent
@@ -59,6 +67,4 @@ func newOutOfBandMigrationRunner(ctx context.Context, db *sql.DB) *oobmigration.
 	); err != nil {
 		log.Fatalf("Unfinished migrations: %v", err)
 	}
-
-	return outOfBandMigrationRunner
 }
