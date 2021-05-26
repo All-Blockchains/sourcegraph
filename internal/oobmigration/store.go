@@ -165,9 +165,22 @@ WHERE m.id = %s
 ORDER BY e.created desc
 `
 
+// ReturnEnterpriseMigrations is set by the enterprise application to enable the
+// inclusion of enterprise-only migration records in the output of oobmigration.List.
+var ReturnEnterpriseMigrations = false
+
 // List returns the complete list of out-of-band migrations.
 func (s *Store) List(ctx context.Context) (_ []Migration, err error) {
-	return scanMigrations(s.Store.Query(ctx, sqlf.Sprintf(listQuery)))
+	var conds []*sqlf.Query
+	if !ReturnEnterpriseMigrations {
+		conds = append(conds, sqlf.Sprintf("NOT m.is_enterprise"))
+	}
+
+	if len(conds) == 0 {
+		conds = append(conds, sqlf.Sprintf("TRUE"))
+	}
+
+	return scanMigrations(s.Store.Query(ctx, sqlf.Sprintf(listQuery, sqlf.Join(conds, "AND"))))
 }
 
 const listQuery = `
@@ -188,6 +201,7 @@ SELECT
 	e.created
 FROM out_of_band_migrations m
 LEFT JOIN out_of_band_migrations_errors e ON e.migration_id = m.id
+WHERE %s
 ORDER BY m.id desc, e.created desc
 `
 
