@@ -29,4 +29,9 @@ ALTER TABLE out_of_band_migrations ADD COLUMN deprecated_version_major int;
 ALTER TABLE out_of_band_migrations ADD COLUMN deprecated_version_minor int;
 ALTER TABLE out_of_band_migrations DROP COLUMN deprecated;
 
+COMMENT ON COLUMN out_of_band_migrations.introduced_version_major IS 'The Sourcegraph version (major component) in which this migration was first introduced.';
+COMMENT ON COLUMN out_of_band_migrations.introduced_version_minor IS 'The Sourcegraph version (minor component) in which this migration was first introduced.';
+COMMENT ON COLUMN out_of_band_migrations.deprecated_version_major IS 'The lowest Sourcegraph version (major component) that assumes the migration has completed.';
+COMMENT ON COLUMN out_of_band_migrations.deprecated_version_minor IS 'The lowest Sourcegraph version (minor component) that assumes the migration has completed.';
+
 COMMIT;
