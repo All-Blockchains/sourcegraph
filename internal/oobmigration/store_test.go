@@ -290,7 +290,6 @@ var testEnterpriseMigrations = []Migration{
 	},
 }
 
-func strPtr(s string) *string        { return &s }
 func timePtr(t time.Time) *time.Time { return &t }
 
 func newVersionPtr(major, minor int) *Version {
