@@ -1278,6 +1278,30 @@ type Query {
     Retrieve all registered out-of-band migrations.
     """
     outOfBandMigrations: [OutOfBandMigration!]!
+
+	evaluatedFeatureFlags(user: ID, anonymousUser: String): [EvaluatedFeatureFlag!]!
+}
+
+union FeatureFlag = FeatureFlagBoolean | FeatureFlagRollout
+
+type FeatureFlagBoolean {
+	name: String!
+	value: Boolean!
+}
+
+type FeatureFlagRollout {
+	name: String!
+	rollout: Int!
+}
+
+type FeatureFlagOverride {
+	flagName: String!
+	value: Boolean!
+}
+
+type EvaluatedFeatureFlag {
+	flagName: String!
+	value: Boolean!
 }
 
 """
@@ -4452,6 +4476,8 @@ type User implements Node & SettingsSubject & Namespace {
     publicRepositories returns the repos listed in user_public_repos for this user
     """
     publicRepositories: [Repository!]!
+	
+	featureFlagOverrides: [FeatureFlagOverride!]!
 }
 
 """
@@ -4787,6 +4813,8 @@ type Org implements Node & SettingsSubject & Namespace {
     The name of this user namespace's component. For organizations, this is the organization's name.
     """
     namespaceName: String!
+
+	featureFlagOverrides: [FeatureFlagOverride!]!
 }
 
 """
