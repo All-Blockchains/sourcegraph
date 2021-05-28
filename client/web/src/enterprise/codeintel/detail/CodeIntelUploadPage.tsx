@@ -6,6 +6,7 @@ import { timer } from 'rxjs'
 import { catchError, concatMap, delay, repeatWhen, takeWhile } from 'rxjs/operators'
 
 import { LoadingSpinner } from '@sourcegraph/react-loading-spinner'
+import { Link } from '@sourcegraph/shared/src/components/Link'
 import { LSIFUploadState } from '@sourcegraph/shared/src/graphql-operations'
 import { TelemetryProps } from '@sourcegraph/shared/src/telemetry/telemetryService'
 import { asError, ErrorLike, isErrorLike } from '@sourcegraph/shared/src/util/errors'
@@ -20,7 +21,6 @@ import { CodeIntelStateBanner } from '../shared/CodeIntelStateBanner'
 import { deleteLsifUpload, fetchLsifUpload as defaultFetchUpload } from './backend'
 import { CodeIntelUploadMeta } from './CodeIntelUploadMeta'
 import { CodeIntelUploadTimeline } from './CodeIntelUploadTimeline'
-import { Link } from '@sourcegraph/shared/src/components/Link'
 
 export interface CodeIntelUploadPageProps extends RouteComponentProps<{ id: string }>, TelemetryProps {
     fetchLsifUpload?: typeof defaultFetchUpload

@@ -27,6 +27,7 @@ add('Uploading', () => (
                     finishedAt: null,
                     failure: null,
                     placeInQueue: null,
+                    associatedIndex: null,
                 })}
                 now={now}
             />
@@ -46,6 +47,7 @@ add('Queued', () => (
                     finishedAt: null,
                     placeInQueue: 3,
                     failure: null,
+                    associatedIndex: null,
                 })}
                 now={now}
             />
@@ -65,6 +67,7 @@ add('Processing', () => (
                     finishedAt: null,
                     failure: null,
                     placeInQueue: null,
+                    associatedIndex: null,
                 })}
                 now={now}
             />
@@ -84,6 +87,7 @@ add('Completed', () => (
                     finishedAt: '2020-06-15T12:30:30+00:00',
                     failure: null,
                     placeInQueue: null,
+                    associatedIndex: null,
                 })}
                 now={now}
             />
@@ -104,6 +108,7 @@ add('Errored', () => (
                     failure:
                         'Upload failed to complete: dial tcp: lookup gitserver-8.gitserver on 10.165.0.10:53: no such host',
                     placeInQueue: null,
+                    associatedIndex: null,
                 })}
                 now={now}
             />
@@ -123,6 +128,7 @@ add('Failed Upload', () => (
                     finishedAt: '2020-06-15T12:30:30+00:00',
                     failure: 'Upload failed to complete: object store error:\n * XMinioStorageFull etc etc',
                     placeInQueue: null,
+                    associatedIndex: null,
                 })}
                 now={now}
             />
@@ -131,7 +137,10 @@ add('Failed Upload', () => (
 ))
 
 const fetch = (
-    upload: Pick<LsifUploadFields, 'state' | 'uploadedAt' | 'startedAt' | 'finishedAt' | 'failure' | 'placeInQueue'>
+    upload: Pick<
+        LsifUploadFields,
+        'state' | 'uploadedAt' | 'startedAt' | 'finishedAt' | 'failure' | 'placeInQueue' | 'associatedIndex'
+    >
 ): (() => Observable<LsifUploadFields>) => () =>
     of({
         __typename: 'LSIFUpload',

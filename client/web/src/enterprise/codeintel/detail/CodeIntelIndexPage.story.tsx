@@ -33,6 +33,7 @@ add('Queued', () => (
                     placeInQueue: 3,
                     failure: null,
                     steps,
+                    associatedUpload: null,
                 })}
                 now={now}
             />
@@ -53,6 +54,7 @@ add('Processing', () => (
                     failure: null,
                     placeInQueue: null,
                     steps,
+                    associatedUpload: null,
                 })}
                 now={now}
             />
@@ -73,6 +75,7 @@ add('Completed', () => (
                     failure: null,
                     placeInQueue: null,
                     steps,
+                    associatedUpload: null,
                 })}
                 now={now}
             />
@@ -97,6 +100,7 @@ add('Errored', () => {
                         failure: 'Whoops! The server encountered a boo-boo handling this input.',
                         placeInQueue: null,
                         steps: { ...steps, index: { ...steps.index, logEntry } },
+                        associatedUpload: null,
                     })}
                     now={now}
                 />
@@ -108,7 +112,7 @@ add('Errored', () => {
 const fetch = (
     index: Pick<
         LsifIndexFields,
-        'state' | 'queuedAt' | 'startedAt' | 'finishedAt' | 'failure' | 'placeInQueue' | 'steps'
+        'state' | 'queuedAt' | 'startedAt' | 'finishedAt' | 'failure' | 'placeInQueue' | 'steps' | 'associatedUpload'
     >
 ): (() => Observable<LsifIndexFields>) => () =>
     of({
