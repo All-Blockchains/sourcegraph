@@ -2,23 +2,27 @@ package graphql
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/graph-gophers/graphql-go"
 
 	gql "github.com/sourcegraph/sourcegraph/cmd/frontend/graphqlbackend"
+	"github.com/sourcegraph/sourcegraph/enterprise/cmd/frontend/internal/codeintel/resolvers"
 	store "github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/stores/dbstore"
 	"github.com/sourcegraph/sourcegraph/internal/api"
 )
 
 type IndexResolver struct {
 	index            store.Index
+	resolver         resolvers.Resolver
 	locationResolver *CachedLocationResolver
 }
 
-func NewIndexResolver(index store.Index, locationResolver *CachedLocationResolver) gql.LSIFIndexResolver {
+func NewIndexResolver(index store.Index, resolver resolvers.Resolver, locationResolver *CachedLocationResolver) gql.LSIFIndexResolver {
 	return &IndexResolver{
 		index:            index,
+		resolver:         resolver,
 		locationResolver: locationResolver,
 	}
 }
@@ -41,6 +45,21 @@ func (r *IndexResolver) State() string {
 	}
 
 	return state
+}
+
+func (r *IndexResolver) AssociatedUpload(ctx context.Context) (gql.LSIFUploadResolver, error) {
+	if r.index.AssociatedUploadID == nil {
+		return nil, nil
+	}
+
+	// TODO - bulk request everything in the layer
+	fmt.Printf("FETCHING UPLOAD %d FROM DATABASE\n", *r.index.AssociatedUploadID)
+	upload, exists, err := r.resolver.GetUploadByID(ctx, *r.index.AssociatedUploadID)
+	if err != nil || !exists {
+		return nil, err
+	}
+
+	return NewUploadResolver(upload, r.resolver, r.locationResolver), nil
 }
 
 func (r *IndexResolver) ProjectRoot(ctx context.Context) (*gql.GitTreeEntryResolver, error) {

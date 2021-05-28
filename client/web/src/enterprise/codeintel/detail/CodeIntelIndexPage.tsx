@@ -19,6 +19,7 @@ import { CodeIntelStateBanner } from '../shared/CodeIntelStateBanner'
 import { deleteLsifIndex, fetchLsifIndex as defaultFetchLsifIndex } from './backend'
 import { CodeIntelIndexMeta } from './CodeIntelIndexMeta'
 import { CodeIntelIndexTimeline } from './CodeIntelIndexTimeline'
+import { Link } from '@sourcegraph/shared/src/components/Link'
 
 export interface CodeIntelIndexPageProps extends RouteComponentProps<{ id: string }>, TelemetryProps {
     fetchLsifIndex?: typeof defaultFetchLsifIndex
@@ -124,6 +125,18 @@ export const CodeIntelIndexPage: FunctionComponent<CodeIntelIndexPageProps> = ({
                         </div>
                     </div>
                     <CodeIntelIndexTimeline index={indexOrError} now={now} className="mb-3" />
+
+                    {/* TODO - make this a standard component? */}
+                    {indexOrError.associatedUpload && indexOrError.projectRoot?.repository && (
+                        <div>
+                            <Link
+                                to={`/${indexOrError.projectRoot.repository.name}/-/settings/code-intelligence/uploads/${indexOrError.associatedUpload.id}`}
+                            >
+                                Associated upload
+                            </Link>{' '}
+                            is {indexOrError.associatedUpload.state}
+                        </div>
+                    )}
                 </>
             )}
         </div>
