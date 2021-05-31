@@ -35,6 +35,7 @@ import {
 } from './BatchChangeCloseHeader'
 import { ChangesetCloseNodeProps, ChangesetCloseNode } from './ChangesetCloseNode'
 import { CloseChangesetsListEmptyElement } from './CloseChangesetsListEmptyElement'
+import { Container } from '@sourcegraph/wildcard'
 
 interface Props extends ThemeProps, PlatformContextProps, TelemetryProps, ExtensionsControllerProps {
     batchChangeID: Scalars['ID']
@@ -144,52 +145,54 @@ export const BatchChangeCloseChangesetsList: React.FunctionComponent<Props> = ({
 
     return (
         <div className="list-group position-relative" ref={nextContainerElement}>
-            <FilteredConnection<
-                ChangesetFields,
-                Omit<ChangesetCloseNodeProps, 'node'>,
-                {},
-                (BatchChangeChangesetsResult['node'] & { __typename: 'BatchChange' })['changesets']
-            >
-                className="mt-2"
-                nodeComponent={ChangesetCloseNode}
-                nodeComponentProps={{
-                    isLightTheme,
-                    viewerCanAdminister,
-                    history,
-                    location,
-                    extensionInfo: { extensionsController, hoverifier },
-                    queryExternalChangesetWithFileDiffs,
-                    willClose,
-                }}
-                queryConnection={queryChangesetsConnection}
-                hideSearch={true}
-                defaultFirst={15}
-                noun="open changeset"
-                pluralNoun="open changesets"
-                history={history}
-                location={location}
-                useURLQuery={true}
-                listComponent="div"
-                listClassName={classNames(styles.batchChangeCloseChangesetsListGrid, 'mb-3')}
-                headComponent={
-                    willClose ? BatchChangeCloseHeaderWillCloseChangesets : BatchChangeCloseHeaderWillKeepChangesets
-                }
-                noSummaryIfAllNodesVisible={true}
-                onUpdate={onUpdate}
-                emptyElement={<CloseChangesetsListEmptyElement />}
-            />
-            {hoverState?.hoverOverlayProps && (
-                <WebHoverOverlay
-                    {...hoverState.hoverOverlayProps}
-                    telemetryService={telemetryService}
-                    extensionsController={extensionsController}
-                    isLightTheme={isLightTheme}
+            <Container>
+                <FilteredConnection<
+                    ChangesetFields,
+                    Omit<ChangesetCloseNodeProps, 'node'>,
+                    {},
+                    (BatchChangeChangesetsResult['node'] & { __typename: 'BatchChange' })['changesets']
+                >
+                    className="mt-2"
+                    nodeComponent={ChangesetCloseNode}
+                    nodeComponentProps={{
+                        isLightTheme,
+                        viewerCanAdminister,
+                        history,
+                        location,
+                        extensionInfo: { extensionsController, hoverifier },
+                        queryExternalChangesetWithFileDiffs,
+                        willClose,
+                    }}
+                    queryConnection={queryChangesetsConnection}
+                    hideSearch={true}
+                    defaultFirst={15}
+                    noun="open changeset"
+                    pluralNoun="open changesets"
+                    history={history}
                     location={location}
-                    platformContext={platformContext}
-                    hoverRef={nextOverlayElement}
-                    onCloseButtonClick={nextCloseButtonClick}
+                    useURLQuery={true}
+                    listComponent="div"
+                    listClassName={classNames(styles.batchChangeCloseChangesetsListGrid, 'mb-3')}
+                    headComponent={
+                        willClose ? BatchChangeCloseHeaderWillCloseChangesets : BatchChangeCloseHeaderWillKeepChangesets
+                    }
+                    noSummaryIfAllNodesVisible={true}
+                    onUpdate={onUpdate}
+                    emptyElement={<CloseChangesetsListEmptyElement />}
                 />
-            )}
+                {hoverState?.hoverOverlayProps && (
+                    <WebHoverOverlay
+                        {...hoverState.hoverOverlayProps}
+                        telemetryService={telemetryService}
+                        extensionsController={extensionsController}
+                        isLightTheme={isLightTheme}
+                        location={location}
+                        platformContext={platformContext}
+                        hoverRef={nextOverlayElement}
+                        onCloseButtonClick={nextCloseButtonClick}
+                    />
+                )}
+            </Container>
         </div>
     )
 }
