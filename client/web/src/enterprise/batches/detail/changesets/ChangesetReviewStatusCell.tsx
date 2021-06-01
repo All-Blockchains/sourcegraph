@@ -34,34 +34,34 @@ export const ChangesetReviewStatusCell: React.FunctionComponent<ChangesetReviewS
 export const ChangesetReviewStatusPending: React.FunctionComponent<{ className?: string }> = ({ className }) => (
     <div
         className={classNames(
-            'text-warning m-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
+            'm-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
             className
         )}
     >
-        <TimerSandIcon />
-        <span className="text-muted">Pending</span>
+        <TimerSandIcon className="text-warning" />
+        <span>Pending</span>
     </div>
 )
 export const ChangesetReviewStatusDismissed: React.FunctionComponent<{ className?: string }> = ({ className }) => (
     <div
         className={classNames(
-            'text-muted m-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
+            'm-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
             className
         )}
     >
-        <GateArrowRightIcon />
-        <span className="text-muted">Dismissed</span>
+        <GateArrowRightIcon className="text-muted" />
+        <span>Dismissed</span>
     </div>
 )
 export const ChangesetReviewStatusCommented: React.FunctionComponent<{ className?: string }> = ({ className }) => (
     <div
         className={classNames(
-            'text-muted m-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
+            'm-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
             className
         )}
     >
-        <CommentOutlineIcon />
-        <span className="text-muted">Commented</span>
+        <CommentOutlineIcon className="text-muted" />
+        <span>Commented</span>
     </div>
 )
 export const ChangesetReviewStatusChangesRequested: React.FunctionComponent<{ className?: string }> = ({
@@ -69,22 +69,22 @@ export const ChangesetReviewStatusChangesRequested: React.FunctionComponent<{ cl
 }) => (
     <div
         className={classNames(
-            'text-warning m-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
+            'm-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
             className
         )}
     >
-        <DeltaIcon />
-        <span className="text-muted">Changes requested</span>
+        <DeltaIcon className="text-warning" />
+        <span>Changes requested</span>
     </div>
 )
 export const ChangesetReviewStatusApproved: React.FunctionComponent<{ className?: string }> = ({ className }) => (
     <div
         className={classNames(
-            'text-success m-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
+            'm-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
             className
         )}
     >
-        <CheckCircleIcon />
-        <span className="text-muted">Approved</span>
+        <CheckCircleIcon className="text-success" />
+        <span>Approved</span>
     </div>
 )

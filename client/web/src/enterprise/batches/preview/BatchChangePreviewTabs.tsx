@@ -5,6 +5,7 @@ import React from 'react'
 
 import { TelemetryProps } from '@sourcegraph/shared/src/telemetry/telemetryService'
 import { ThemeProps } from '@sourcegraph/shared/src/theme'
+import { Container } from '@sourcegraph/wildcard'
 
 import { BatchSpecFields } from '../../../graphql-operations'
 import {
@@ -22,7 +23,6 @@ import {
     queryChangesetApplyPreview as _queryChangesetApplyPreview,
 } from './list/backend'
 import { PreviewList } from './list/PreviewList'
-import { Container } from '@sourcegraph/wildcard'
 
 export interface BatchChangePreviewProps extends ThemeProps, TelemetryProps {
     batchSpecID: string
@@ -56,12 +56,16 @@ export const BatchChangePreviewTabs: React.FunctionComponent<BatchChangePreviewT
     <BatchChangeTabs history={history} location={location}>
         <BatchChangeTabList>
             <BatchChangeTab index={0} name="previewchangesets">
-                <SourceBranchIcon className="icon-inline text-muted mr-1" />
-                Preview changesets{' '}
-                <span className="badge badge-pill badge-secondary ml-1">{spec.applyPreview.totalCount}</span>
+                <span>
+                    <SourceBranchIcon className="icon-inline text-muted mr-1" />
+                    Preview changesets{' '}
+                    <span className="badge badge-pill badge-secondary ml-1">{spec.applyPreview.totalCount}</span>
+                </span>
             </BatchChangeTab>
             <BatchChangeTab index={1} name="spec">
-                <FileDocumentIcon className="icon-inline text-muted mr-1" /> Spec
+                <span>
+                    <FileDocumentIcon className="icon-inline text-muted mr-1" /> Spec
+                </span>
             </BatchChangeTab>
         </BatchChangeTabList>
         <BatchChangeTabPanels>

@@ -1,8 +1,10 @@
 // unsets the defaults; can probably go away with the redesign
 .batch-change-tabs {
-    // .nav-link {
-    //     color: var(--link-color);
-    // }
+    .nav-link {
+        .theme-classic & {
+            color: var(--link-color);
+        }
+    }
 
     [data-reach-tab],
     [data-reach-tab]:hover,

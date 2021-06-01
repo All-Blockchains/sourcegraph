@@ -17,6 +17,7 @@ import { ErrorLike } from '@sourcegraph/shared/src/util/errors'
 import { isDefined, property } from '@sourcegraph/shared/src/util/types'
 import { RepoSpec, RevisionSpec, FileSpec, ResolvedRevisionSpec } from '@sourcegraph/shared/src/util/url'
 import { useObservable } from '@sourcegraph/shared/src/util/useObservable'
+import { Container } from '@sourcegraph/wildcard'
 
 import { getHover, getDocumentHighlights } from '../../../backend/features'
 import { FilteredConnectionQueryArguments, FilteredConnection } from '../../../components/FilteredConnection'
@@ -35,7 +36,6 @@ import {
 } from './BatchChangeCloseHeader'
 import { ChangesetCloseNodeProps, ChangesetCloseNode } from './ChangesetCloseNode'
 import { CloseChangesetsListEmptyElement } from './CloseChangesetsListEmptyElement'
-import { Container } from '@sourcegraph/wildcard'
 
 interface Props extends ThemeProps, PlatformContextProps, TelemetryProps, ExtensionsControllerProps {
     batchChangeID: Scalars['ID']
@@ -152,7 +152,6 @@ export const BatchChangeCloseChangesetsList: React.FunctionComponent<Props> = ({
                     {},
                     (BatchChangeChangesetsResult['node'] & { __typename: 'BatchChange' })['changesets']
                 >
-                    className="mt-2"
                     nodeComponent={ChangesetCloseNode}
                     nodeComponentProps={{
                         isLightTheme,
@@ -179,6 +178,7 @@ export const BatchChangeCloseChangesetsList: React.FunctionComponent<Props> = ({
                     noSummaryIfAllNodesVisible={true}
                     onUpdate={onUpdate}
                     emptyElement={<CloseChangesetsListEmptyElement />}
+                    className="filtered-connection__centered-summary"
                 />
                 {hoverState?.hoverOverlayProps && (
                     <WebHoverOverlay

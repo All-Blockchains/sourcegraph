@@ -6,6 +6,7 @@ import { Container, PageHeader } from '@sourcegraph/wildcard'
 
 import { BatchChangesIcon } from '../../../batches/icons'
 import { PageTitle } from '../../../components/PageTitle'
+import { SidebarGroup, SidebarGroupHeader, SidebarGroupItems } from '../../../components/Sidebar'
 
 import combySample from './samples/comby.batch.yaml'
 import helloWorldSample from './samples/empty.batch.yaml'
@@ -27,12 +28,16 @@ const SampleTabHeader: React.FunctionComponent<SampleTabHeaderProps> = ({ sample
         [setSelectedSample, sample]
     )
     return (
-        <li className="nav-item">
-            {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
-            <a href="" onClick={onClick} className={classNames('nav-link', active && 'active')} role="button">
-                {sample.name}
-            </a>
-        </li>
+        <button
+            type="button"
+            onClick={onClick}
+            className={classNames(
+                'btn text-left sidebar__link--inactive d-flex sidebar-nav-link w-100',
+                active && 'btn-primary'
+            )}
+        >
+            {sample.name}
+        </button>
     )
 }
 
@@ -42,10 +47,10 @@ interface Sample {
 }
 
 const samples: Sample[] = [
-    { name: 'hello-world.batch.yaml', file: helloWorldSample },
-    { name: 'modify-with-comby.batch.yaml', file: combySample },
-    { name: 'update-go-imports.batch.yaml', file: goImportsSample },
-    { name: 'minimal.batch.yaml', file: minimalSample },
+    { name: 'Hello world', file: helloWorldSample },
+    { name: 'Modify with comby', file: combySample },
+    { name: 'Update go imports', file: goImportsSample },
+    { name: 'Minimal', file: minimalSample },
 ]
 
 export interface CreateBatchChangePageProps {
@@ -77,25 +82,25 @@ export const CreateBatchChangePage: React.FunctionComponent<CreateBatchChangePag
                     batch changes. We recommend committing it to source control.
                 </p>
             </Container>
-            <div className="row mb-3">
-                <div className="col-4">
-                    <h3>Examples</h3>
-                    <ul className="nav nav-pills">
-                        {samples.map(sample => (
-                            <SampleTabHeader
-                                key={sample.name}
-                                sample={sample}
-                                active={selectedSample.name === sample.name}
-                                setSelectedSample={setSelectedSample}
-                            />
-                        ))}
-                    </ul>
+            <div className="d-flex mb-3">
+                <div className="flex-shrink-0">
+                    <SidebarGroup>
+                        <SidebarGroupItems>
+                            <SidebarGroupHeader label="Examples" />
+                            {samples.map(sample => (
+                                <SampleTabHeader
+                                    key={sample.name}
+                                    sample={sample}
+                                    active={selectedSample.name === sample.name}
+                                    setSelectedSample={setSelectedSample}
+                                />
+                            ))}
+                        </SidebarGroupItems>
+                    </SidebarGroup>
                 </div>
-                <div className="col-8">
-                    <Container>
-                        <CodeSnippet code={selectedSample.file} language="yaml" className="mb-4" />
-                    </Container>
-                </div>
+                <Container className="ml-3 flex-grow-1">
+                    <CodeSnippet code={selectedSample.file} language="yaml" className="mb-0" />
+                </Container>
             </div>
             <Container className="mb-3">
                 <h2>2. Preview the batch change with Sourcegraph CLI</h2>

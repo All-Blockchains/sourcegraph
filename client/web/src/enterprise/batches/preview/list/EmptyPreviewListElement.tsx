@@ -1,11 +1,10 @@
-import classNames from 'classnames'
 import React from 'react'
 
 import styles from './EmptyPreviewListElement.module.scss'
 
 export const EmptyPreviewListElement: React.FunctionComponent<{}> = () => (
     <div className={styles.emptyPreviewListElementBody}>
-        <h2 className="text-center mb-4">No changesets will be created by this batch change</h2>
+        <h3 className="text-center mb-4">No changesets will be created by this batch change</h3>
         <p>This can occur for several reasons:</p>
         <p>
             <strong>

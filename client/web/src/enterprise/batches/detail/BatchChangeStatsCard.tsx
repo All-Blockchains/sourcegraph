@@ -4,6 +4,7 @@ import ProgressCheckIcon from 'mdi-react/ProgressCheckIcon'
 import React from 'react'
 
 import { pluralize } from '@sourcegraph/shared/src/util/strings'
+import { Container } from '@sourcegraph/wildcard'
 
 import { DiffStat } from '../../../components/diff/DiffStat'
 import { BatchChangeFields, ChangesetsStatsFields, DiffStatFields } from '../../../graphql-operations'
@@ -40,12 +41,12 @@ export const BatchChangeStatsCard: React.FunctionComponent<BatchChangeStatsCardP
         BatchChangeStatusIcon = CheckCircleOutlineIcon
     }
     return (
-        <div className={classNames(className)}>
+        <Container className={classNames(className)}>
             <div className="d-flex flex-wrap align-items-center flex-grow-1">
                 <h2 className="m-0">
                     <BatchChangeStateBadge isClosed={!!closedAt} className={styles.batchChangeStatsCardStateBadge} />
                 </h2>
-                <div className={classNames(styles.batchChangeStatsCardDivider, 'mx-4')} />
+                <div className={classNames(styles.batchChangeStatsCardDivider, 'mx-3')} />
                 <div className="d-flex align-items-center">
                     <h1 className="d-inline mb-0">
                         <BatchChangeStatusIcon
@@ -60,7 +61,7 @@ export const BatchChangeStatsCard: React.FunctionComponent<BatchChangeStatsCardP
                         {percentComplete}% complete
                     </span>
                 </div>
-                <div className={classNames(styles.batchChangeStatsCardDivider, 'd-none d-md-block mx-4')} />
+                <div className={classNames(styles.batchChangeStatsCardDivider, 'd-none d-md-block mx-3')} />
                 <DiffStat
                     {...diff}
                     expandedCounts={true}
@@ -70,32 +71,32 @@ export const BatchChangeStatsCard: React.FunctionComponent<BatchChangeStatsCardP
                 <div className="d-flex flex-wrap justify-content-end flex-grow-1">
                     <BatchChangeStatsTotalAction count={stats.total} />
                     <ChangesetStatusUnpublished
-                        label={<span className="text-muted">{stats.unpublished} unpublished</span>}
+                        label={<>{stats.unpublished} unpublished</>}
                         className={classNames(styles.batchChangeStatsCardStat, 'd-flex flex-grow-0 px-2 text-truncate')}
                     />
                     <ChangesetStatusDraft
-                        label={<span className="text-muted">{stats.draft} draft</span>}
+                        label={<>{stats.draft} draft</>}
                         className={classNames(styles.batchChangeStatsCardStat, 'd-flex flex-grow-0 px-2 text-truncate')}
                     />
                     <ChangesetStatusOpen
-                        label={<span className="text-muted">{stats.open} open</span>}
+                        label={<>{stats.open} open</>}
                         className={classNames(styles.batchChangeStatsCardStat, 'd-flex flex-grow-0 px-2 text-truncate')}
                     />
                     <ChangesetStatusClosed
-                        label={<span className="text-muted">{stats.closed} closed</span>}
+                        label={<>{stats.closed} closed</>}
                         className={classNames(styles.batchChangeStatsCardStat, 'd-flex flex-grow-0 px-2 text-truncate')}
                     />
                     <ChangesetStatusMerged
-                        label={<span className="text-muted">{stats.merged} merged</span>}
+                        label={<>{stats.merged} merged</>}
                         className={classNames(styles.batchChangeStatsCardStat, 'd-flex flex-grow-0 pl-2 text-truncate')}
                     />
                     <ChangesetStatusArchived
-                        label={<span className="text-muted">{stats.archived} archived</span>}
+                        label={<>{stats.archived} archived</>}
                         className={classNames(styles.batchChangeStatsCardStat, 'd-flex flex-grow-0 pl-2 text-truncate')}
                     />
                 </div>
             </div>
-        </div>
+        </Container>
     )
 }
 
@@ -109,6 +110,6 @@ export const BatchChangeStatsTotalAction: React.FunctionComponent<{ count: numbe
         <span className={styles.batchChangeStatsCardChangesetsPill}>
             <span className="badge badge-pill badge-secondary">{count}</span>
         </span>
-        <span className="text-muted">{pluralize('changeset', count, 'changesets')}</span>
+        <span>{pluralize('changeset', count, 'changesets')}</span>
     </div>
 )

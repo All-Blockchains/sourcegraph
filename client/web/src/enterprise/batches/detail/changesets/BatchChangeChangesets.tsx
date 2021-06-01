@@ -291,6 +291,7 @@ export const BatchChangeChangesets: React.FunctionComponent<Props> = ({
                     useURLQuery={true}
                     listComponent="div"
                     listClassName={styles.batchChangeChangesetsGrid}
+                    className="filtered-connection__centered-summary"
                     headComponent={BatchChangeChangesetsHeader}
                     headComponentProps={{
                         allSelected: allSelectedCheckboxChecked,

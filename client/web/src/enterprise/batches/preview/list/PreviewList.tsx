@@ -65,50 +65,46 @@ export const PreviewList: React.FunctionComponent<Props> = ({
     )
 
     return (
-        <>
-            <h3>Preview</h3>
-            <hr className="mb-3" />
-            <Container>
-                <PreviewFilterRow history={history} location={location} onFiltersChange={setFilters} />
-                <FilteredConnection<ChangesetApplyPreviewFields, Omit<ChangesetApplyPreviewNodeProps, 'node'>>
-                    className="mt-2"
-                    nodeComponent={ChangesetApplyPreviewNode}
-                    nodeComponentProps={{
-                        isLightTheme,
-                        history,
-                        location,
-                        authenticatedUser,
-                        queryChangesetSpecFileDiffs,
-                        expandChangesetDescriptions,
-                    }}
-                    queryConnection={queryChangesetApplyPreviewConnection}
-                    hideSearch={true}
-                    defaultFirst={15}
-                    noun="changeset"
-                    pluralNoun="changesets"
-                    history={history}
-                    location={location}
-                    useURLQuery={true}
-                    listComponent="div"
-                    listClassName={classNames(styles.previewListGrid, 'mb-3')}
-                    headComponent={PreviewListHeader}
-                    cursorPaging={true}
-                    noSummaryIfAllNodesVisible={true}
-                    emptyElement={
-                        filters.search || filters.currentState || filters.action ? (
-                            <EmptyPreviewSearchElement />
-                        ) : (
-                            <EmptyPreviewListElement />
-                        )
-                    }
-                />
-            </Container>
-        </>
+        <Container>
+            <PreviewFilterRow history={history} location={location} onFiltersChange={setFilters} />
+            <FilteredConnection<ChangesetApplyPreviewFields, Omit<ChangesetApplyPreviewNodeProps, 'node'>>
+                className="mt-2"
+                nodeComponent={ChangesetApplyPreviewNode}
+                nodeComponentProps={{
+                    isLightTheme,
+                    history,
+                    location,
+                    authenticatedUser,
+                    queryChangesetSpecFileDiffs,
+                    expandChangesetDescriptions,
+                }}
+                queryConnection={queryChangesetApplyPreviewConnection}
+                hideSearch={true}
+                defaultFirst={15}
+                noun="changeset"
+                pluralNoun="changesets"
+                history={history}
+                location={location}
+                useURLQuery={true}
+                listComponent="div"
+                listClassName={classNames(styles.previewListGrid, 'mb-3')}
+                headComponent={PreviewListHeader}
+                cursorPaging={true}
+                noSummaryIfAllNodesVisible={true}
+                emptyElement={
+                    filters.search || filters.currentState || filters.action ? (
+                        <EmptyPreviewSearchElement />
+                    ) : (
+                        <EmptyPreviewListElement />
+                    )
+                }
+            />
+        </Container>
     )
 }
 
 const EmptyPreviewSearchElement: React.FunctionComponent<{}> = () => (
-    <div className="text-muted mb-3 row w-100">
+    <div className="text-muted row w-100">
         <div className="col-12 text-center">
             <MagnifyIcon className="icon" />
             <div className="pt-2">No changesets matched the search.</div>

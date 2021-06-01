@@ -1,7 +1,5 @@
 @import 'wildcard/src/global-styles/breakpoints';
 
-$changeset-backdrop: #f3faff;
-
 .visible-changeset-apply-preview-node {
     &__current-state,
     &__action,
@@ -13,7 +11,7 @@ $changeset-backdrop: #f3faff;
         }
     }
     &__bg-expanded {
-        background-color: $changeset-backdrop;
+        background-color: var(--body-bg);
         @media (--sm-breakpoint-up) {
             border-top: 1px solid var(--border-color-2);
             padding: 1.5rem;
@@ -22,7 +20,7 @@ $changeset-backdrop: #f3faff;
     &__status-cell {
         color: var(--muted);
         @media (--sm-breakpoint-up) {
-            background-color: var(--oc-blue-0);
+            background-color: var(--body-bg);
         }
     }
     &__list-cell {
@@ -42,8 +40,10 @@ $changeset-backdrop: #f3faff;
     }
     &__tab-link {
         &--active {
-            background-color: $changeset-backdrop !important;
-            border-bottom: 1px solid $changeset-backdrop !important;
+            .theme-classic & {
+                background-color: var(--body-bg) !important;
+                border-bottom: 1px solid var(--body-bg) !important;
+            }
         }
     }
     &__change-indicator {

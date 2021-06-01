@@ -1,6 +1,8 @@
 import classNames from 'classnames'
 import React from 'react'
 
+import { Container } from '@sourcegraph/wildcard'
+
 import { DiffStat } from '../../../components/diff/DiffStat'
 import { BatchSpecFields } from '../../../graphql-operations'
 
@@ -27,45 +29,66 @@ export interface BatchChangePreviewStatsBarProps {
 }
 
 export const BatchChangePreviewStatsBar: React.FunctionComponent<BatchChangePreviewStatsBarProps> = ({ batchSpec }) => (
-    <div className="d-flex flex-wrap mb-3 align-items-center">
-        <h2 className="m-0 align-self-center">
-            <span className="badge badge-info text-uppercase mb-0">Preview</span>
-        </h2>
-        <div className={classNames(styles.batchChangePreviewStatsBarDivider, 'd-none d-sm-block mx-3')} />
-        <DiffStat
-            {...batchSpec.diffStat}
-            separateLines={true}
-            expandedCounts={true}
-            className={styles.batchChangePreviewStatsBarDiff}
-        />
-        <div className={classNames(styles.batchChangePreviewStatsBarHorizontalDivider, 'd-block d-sm-none my-3')} />
-        <div className={classNames(styles.batchChangePreviewStatsBarDivider, 'mx-3 d-none d-sm-block d-md-none')} />
-        <div className={classNames(styles.batchChangePreviewStatsBarMetrics, 'flex-grow-1 d-flex justify-content-end')}>
-            <PreviewStatsAdded count={batchSpec.applyPreview.stats.added} />
-            <PreviewStatsRemoved count={batchSpec.applyPreview.stats.removed} />
-            <PreviewStatsModified count={batchSpec.applyPreview.stats.modified} />
+    <Container className="mb-3">
+        <div className="d-flex flex-wrap align-items-center">
+            <h2 className="m-0 align-self-center">
+                <span className="badge badge-info text-uppercase mb-0">Preview</span>
+            </h2>
+            <div className={classNames(styles.batchChangePreviewStatsBarDivider, 'd-none d-sm-block mx-3')} />
+            <DiffStat
+                {...batchSpec.diffStat}
+                separateLines={true}
+                expandedCounts={true}
+                className={styles.batchChangePreviewStatsBarDiff}
+            />
+            <div className={classNames(styles.batchChangePreviewStatsBarHorizontalDivider, 'd-block d-sm-none my-3')} />
+            <div className={classNames(styles.batchChangePreviewStatsBarDivider, 'mx-3 d-none d-sm-block d-md-none')} />
+            <div
+                className={classNames(
+                    styles.batchChangePreviewStatsBarMetrics,
+                    'flex-grow-1 d-flex justify-content-end'
+                )}
+            >
+                <PreviewStatsAdded count={batchSpec.applyPreview.stats.added} />
+                <PreviewStatsRemoved count={batchSpec.applyPreview.stats.removed} />
+                <PreviewStatsModified count={batchSpec.applyPreview.stats.modified} />
+            </div>
+            <div className={classNames(styles.batchChangePreviewStatsBarHorizontalDivider, 'd-block d-md-none my-3')} />
+            <div className={classNames(styles.batchChangePreviewStatsBarDivider, 'd-none d-md-block ml-3 mr-2')} />
+            <div className={classNames(styles.batchChangePreviewStatsBarStates, 'd-flex justify-content-end')}>
+                <PreviewActionReopen
+                    className={actionClassNames}
+                    label={`${batchSpec.applyPreview.stats.reopen} reopen`}
+                />
+                <PreviewActionClose
+                    className={actionClassNames}
+                    label={`${batchSpec.applyPreview.stats.reopen} close`}
+                />
+                <PreviewActionUpdate
+                    className={actionClassNames}
+                    label={`${batchSpec.applyPreview.stats.update} update`}
+                />
+                <PreviewActionUndraft
+                    className={actionClassNames}
+                    label={`${batchSpec.applyPreview.stats.undraft} undraft`}
+                />
+                <PreviewActionPublish
+                    className={actionClassNames}
+                    label={`${
+                        batchSpec.applyPreview.stats.publish + batchSpec.applyPreview.stats.publishDraft
+                    } publish`}
+                />
+                <PreviewActionImport
+                    className={actionClassNames}
+                    label={`${batchSpec.applyPreview.stats.import} import`}
+                />
+                <PreviewActionArchive
+                    className={actionClassNames}
+                    label={`${batchSpec.applyPreview.stats.archive} archive`}
+                />
+            </div>
         </div>
-        <div className={classNames(styles.batchChangePreviewStatsBarHorizontalDivider, 'd-block d-md-none my-3')} />
-        <div className={classNames(styles.batchChangePreviewStatsBarDivider, 'd-none d-md-block ml-3 mr-2')} />
-        <div className={classNames(styles.batchChangePreviewStatsBarStates, 'd-flex justify-content-end')}>
-            <PreviewActionReopen className={actionClassNames} label={`${batchSpec.applyPreview.stats.reopen} reopen`} />
-            <PreviewActionClose className={actionClassNames} label={`${batchSpec.applyPreview.stats.reopen} close`} />
-            <PreviewActionUpdate className={actionClassNames} label={`${batchSpec.applyPreview.stats.update} update`} />
-            <PreviewActionUndraft
-                className={actionClassNames}
-                label={`${batchSpec.applyPreview.stats.undraft} undraft`}
-            />
-            <PreviewActionPublish
-                className={actionClassNames}
-                label={`${batchSpec.applyPreview.stats.publish + batchSpec.applyPreview.stats.publishDraft} publish`}
-            />
-            <PreviewActionImport className={actionClassNames} label={`${batchSpec.applyPreview.stats.import} import`} />
-            <PreviewActionArchive
-                className={actionClassNames}
-                label={`${batchSpec.applyPreview.stats.archive} archive`}
-            />
-        </div>
-    </div>
+    </Container>
 )
 
 export const PreviewStatsAdded: React.FunctionComponent<{ count: number }> = ({ count }) => (

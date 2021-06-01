@@ -21,7 +21,7 @@
     &__current-state {
         color: var(--icon-color);
         @media (--sm-breakpoint-up) {
-            background-color: var(--oc-blue-0);
+            background-color: var(--body-bg);
         }
     }
 }

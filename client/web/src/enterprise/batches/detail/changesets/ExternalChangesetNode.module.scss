@@ -12,7 +12,7 @@
         }
     }
     &__bg-expanded {
-        background-color: var(--oc-blue-0);
+        background-color: var(--body-bg);
     }
     &__expanded-section {
         // Make it full width in the current row.
@@ -45,11 +45,5 @@
                 }
             }
         }
-    }
-}
-
-:global(.theme-dark) .external-changeset-node {
-    &__bg-expanded {
-        background-color: var(--oc-gray-9);
     }
 }

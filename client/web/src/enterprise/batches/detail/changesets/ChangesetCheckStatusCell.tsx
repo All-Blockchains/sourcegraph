@@ -28,33 +28,33 @@ export const ChangesetCheckStatusCell: React.FunctionComponent<ChangesetCheckSta
 export const ChangesetCheckStatusPending: React.FunctionComponent<{ className?: string }> = ({ className }) => (
     <div
         className={classNames(
-            'text-warning m-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
+            'm-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
             className
         )}
     >
-        <TimerSandIcon data-tooltip="Check state is pending" />
-        <span className="text-muted">Pending</span>
+        <TimerSandIcon className="text-warning" data-tooltip="Check state is pending" />
+        <span>Pending</span>
     </div>
 )
 export const ChangesetCheckStatusPassed: React.FunctionComponent<{ className?: string }> = ({ className }) => (
     <div
         className={classNames(
-            'text-success m-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
+            'm-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
             className
         )}
     >
-        <CheckCircleIcon data-tooltip="All checks complete" />
-        <span className="text-muted">Passed</span>
+        <CheckCircleIcon className="text-success" data-tooltip="All checks complete" />
+        <span>Passed</span>
     </div>
 )
 export const ChangesetCheckStatusFailed: React.FunctionComponent<{ className?: string }> = ({ className }) => (
     <div
         className={classNames(
-            'text-danger m-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
+            'm-0 text-nowrap d-flex flex-column align-items-center justify-content-center',
             className
         )}
     >
-        <CloseCircleIcon data-tooltip="Some checks failed" />
-        <span className="text-muted">Failed</span>
+        <CloseCircleIcon className="text-danger" data-tooltip="Some checks failed" />
+        <span>Failed</span>
     </div>
 )

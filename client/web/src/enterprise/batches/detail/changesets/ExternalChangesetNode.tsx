@@ -107,10 +107,7 @@ export const ExternalChangesetNode: React.FunctionComponent<ExternalChangesetNod
             <ChangesetStatusCell
                 id={node.id}
                 state={node.state}
-                className={classNames(
-                    styles.externalChangesetNodeState,
-                    'p-2 align-self-stretch text-muted d-block d-sm-flex'
-                )}
+                className={classNames(styles.externalChangesetNodeState, 'p-2 align-self-stretch d-block d-sm-flex')}
             />
             <ExternalChangesetInfoCell
                 node={node}
