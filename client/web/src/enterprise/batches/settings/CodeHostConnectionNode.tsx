@@ -1,8 +1,6 @@
 import classNames from 'classnames'
 import CheckboxBlankCircleOutlineIcon from 'mdi-react/CheckboxBlankCircleOutlineIcon'
 import CheckCircleOutlineIcon from 'mdi-react/CheckCircleOutlineIcon'
-import EarthIcon from 'mdi-react/EarthIcon'
-import InfoCircleIcon from 'mdi-react/InfoCircleIcon'
 import React, { useCallback, useState } from 'react'
 import { Subject } from 'rxjs'
 
