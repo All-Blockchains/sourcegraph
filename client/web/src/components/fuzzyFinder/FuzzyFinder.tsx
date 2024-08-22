@@ -1,19 +1,21 @@
-import React, { useEffect, Dispatch, SetStateAction, useCallback, useRef } from 'react'
+import React, { useEffect, type Dispatch, type SetStateAction, useCallback, useRef } from 'react'
 
-import * as H from 'history'
+import type * as H from 'history'
 
 import { Shortcut } from '@sourcegraph/shared/src/react-shortcuts'
-import { SettingsCascadeProps } from '@sourcegraph/shared/src/settings/settings'
-import { TelemetryProps } from '@sourcegraph/shared/src/telemetry/telemetryService'
+import type { SettingsCascadeProps } from '@sourcegraph/shared/src/settings/settings'
+import type { TelemetryV2Props } from '@sourcegraph/shared/src/telemetry'
+import type { TelemetryProps } from '@sourcegraph/shared/src/telemetry/telemetryService'
 
 import { FuzzyModal } from './FuzzyModal'
 import { useFuzzyShortcuts } from './FuzzyShortcuts'
-import { fuzzyIsActive, FuzzyTabsProps, FuzzyState, useFuzzyState, FuzzyTabKey } from './FuzzyTabs'
+import { fuzzyIsActive, type FuzzyTabsProps, type FuzzyState, useFuzzyState, type FuzzyTabKey } from './FuzzyTabs'
 
-const DEFAULT_MAX_RESULTS = 100
+const DEFAULT_MAX_RESULTS = 50
 
 export interface FuzzyFinderContainerProps
     extends TelemetryProps,
+        TelemetryV2Props,
         Pick<FuzzyFinderProps, 'location'>,
         SettingsCascadeProps,
         FuzzyTabsProps {
@@ -29,8 +31,10 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
     const { isVisible, setIsVisible } = props
     const isVisibleRef = useRef(isVisible)
     isVisibleRef.current = isVisible
-    const state = useFuzzyState(props, () => setIsVisible(false))
-    const { tabs, activeTab, setActiveTab, repoRevision, toggleGlobalFiles, toggleGlobalSymbols } = state
+    const state = useFuzzyState(props)
+    const { tabs, setQuery, activeTab, setActiveTab, repoRevision, scope, isScopeToggleDisabled, toggleScope } = state
+    const isScopeToggleDisabledRef = useRef(isScopeToggleDisabled)
+    isScopeToggleDisabledRef.current = isScopeToggleDisabled
 
     // We need useRef to access the latest state inside `openFuzzyFinder` below.
     // The keyboard shortcut does not pick up changes to the callback even if we
@@ -50,16 +54,22 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
             const activeTab = activeTabRef.current
             const isVisible = isVisibleRef.current
             if (!isVisible) {
+                if (activeTabRef.current !== tab) {
+                    // Reset the query when the user activates a different tab.
+                    // For example, if the user had "Repos" open, opens a repo,
+                    // and then triggers Cmd+P to activate the "Files" tab then
+                    // we discard the previous query from the "Repos" tab.
+                    setQuery('')
+                }
                 setIsVisible(true)
             }
-            if (isVisible && tab === activeTab) {
+            if (!isScopeToggleDisabledRef.current && isVisible && tab === activeTab) {
                 switch (tab) {
                     case 'files':
-                        toggleGlobalFiles()
-                        break
                     case 'symbols':
-                        toggleGlobalSymbols()
-                        break
+                    case 'all': {
+                        toggleScope()
+                    }
                 }
             } else {
                 const newTab = tabsRef.current.focusNamedTab(tab)
@@ -68,16 +78,29 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
                 }
             }
         },
-        [setActiveTab, setIsVisible, toggleGlobalFiles, toggleGlobalSymbols]
+        [setActiveTab, setIsVisible, toggleScope, setQuery]
     )
 
-    const shortcuts = useFuzzyShortcuts(props.settingsCascade.final)
+    const shortcuts = useFuzzyShortcuts()
 
     useEffect(() => {
         if (isVisible) {
             props.telemetryService.log('FuzzyFinderViewed', { action: 'shortcut open' })
+            props.telemetryRecorder.recordEvent('fuzzyFinder', 'view')
         }
-    }, [props.telemetryService, isVisible])
+    }, [props.telemetryService, props.telemetryRecorder, isVisible])
+
+    const handleResultClick = useCallback(() => {
+        props.telemetryService.log('FuzzyFinderResultClicked', { activeTab, scope }, { activeTab, scope })
+        props.telemetryRecorder.recordEvent('fuzzyFinder.result', 'click')
+        setIsVisible(false)
+    }, [props.telemetryService, props.telemetryRecorder, setIsVisible, activeTab, scope])
+
+    const handleGoToResultsPageClick = useCallback(() => {
+        props.telemetryService.log('FuzzyFinderGoToResultsPageClicked', { activeTab, scope }, { activeTab, scope })
+        props.telemetryRecorder.recordEvent('fuzzyFinder.goToResultsPage', 'click')
+        setIsVisible(false)
+    }, [props.telemetryService, props.telemetryRecorder, setIsVisible, activeTab, scope])
 
     if (tabs.isAllDisabled()) {
         return null
@@ -85,7 +108,7 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
 
     // Disable the fuzzy finder if only the 'files' tab is enabled and we're not
     // in a repository-related page.
-    if (tabs.isOnlyFilesEnabled() && !fuzzyIsActive(activeTab, repoRevision, 'files')) {
+    if (tabs.isOnlyFilesEnabled() && !fuzzyIsActive(activeTab, 'files')) {
         return null
     }
 
@@ -104,7 +127,13 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
                     ))
                 )}
             {isVisible && (
-                <FuzzyFinder {...state} setIsVisible={bool => setIsVisible(bool)} location={props.location} />
+                <FuzzyFinder
+                    {...state}
+                    setIsVisible={setIsVisible}
+                    location={props.location}
+                    onClickResult={handleResultClick}
+                    onClickGoToResultsPage={handleGoToResultsPageClick}
+                />
             )}
         </>
     )
@@ -112,6 +141,16 @@ export const FuzzyFinderContainer: React.FunctionComponent<FuzzyFinderContainerP
 
 interface FuzzyFinderProps extends FuzzyState {
     setIsVisible: Dispatch<SetStateAction<boolean>>
+
+    /**
+     * Search result click handler.
+     */
+    onClickResult: () => void
+
+    /**
+     * Search results page click handler.
+     */
+    onClickGoToResultsPage: () => void
 
     location: H.Location
 

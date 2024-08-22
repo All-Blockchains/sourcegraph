@@ -1,22 +1,52 @@
-import React, { useState, useEffect, useMemo, KeyboardEvent, useLayoutEffect, useCallback } from 'react'
+import React, {
+    useState,
+    useEffect,
+    useRef,
+    useMemo,
+    type KeyboardEvent,
+    useLayoutEffect,
+    useCallback,
+    type SetStateAction,
+    type Dispatch,
+} from 'react'
 
 import { mdiClose } from '@mdi/js'
+import type { TabsProps } from '@reach/tabs'
 import classNames from 'classnames'
-import * as H from 'history'
+import type * as H from 'history'
+import { escapeRegExp } from 'lodash'
 
 import { pluralize } from '@sourcegraph/common'
-import { KeyboardShortcut } from '@sourcegraph/shared/src/keyboardShortcuts'
 import { KEYBOARD_SHORTCUTS } from '@sourcegraph/shared/src/keyboardShortcuts/keyboardShortcuts'
-import { Button, Modal, Icon, H3, Text, Input, useSessionStorage, Code, Link, Checkbox } from '@sourcegraph/wildcard'
+import {
+    Button,
+    Modal,
+    Icon,
+    Text,
+    Input,
+    useSessionStorage,
+    Code,
+    Link,
+    Tabs,
+    Tab,
+    Select,
+    H3,
+    TabPanels,
+    TabPanel,
+    TabList,
+    Badge,
+    LoadingSpinner,
+} from '@sourcegraph/wildcard'
 
 import { AggregateFuzzySearch } from '../../fuzzyFinder/AggregateFuzzySearch'
-import { FuzzySearch, FuzzySearchResult } from '../../fuzzyFinder/FuzzySearch'
+import type { FuzzySearch, FuzzySearchResult } from '../../fuzzyFinder/FuzzySearch'
+import type { SearchValueRankingCache } from '../../fuzzyFinder/SearchValueRankingCache'
 import { mergedHandler } from '../../fuzzyFinder/WordSensitiveFuzzySearch'
 import { Keybindings } from '../KeyboardShortcutsHelp/KeyboardShortcutsHelp'
 
-import { FuzzyRepoRevision } from './FuzzyRepoRevision'
-import { fuzzyErrors, FuzzyState, fuzzyIsActive, FuzzyTabs, FuzzyTabKey } from './FuzzyTabs'
-import { HighlightedLink, linkStyle } from './HighlightedLink'
+import { parseFuzzyFileQuery } from './FuzzyFiles'
+import { fuzzyErrors, type FuzzyState, type FuzzyTabs, type FuzzyTabKey, type FuzzyScope } from './FuzzyTabs'
+import { HighlightedLink, type HighlightedLinkProps, linkStyle } from './HighlightedLink'
 
 import styles from './FuzzyModal.module.scss'
 
@@ -29,6 +59,8 @@ export interface FuzzyModalProps extends FuzzyState {
     initialMaxResults: number
     initialQuery: string
     onClose: () => void
+    onClickResult: () => void
+    onClickGoToResultsPage: () => void
     tabs: FuzzyTabs
     location: H.Location
 }
@@ -44,6 +76,7 @@ function cleanupOldLocalStorage(): void {
 
 interface RenderProps {
     query: string
+    fsmGeneration: number
     result: FuzzySearchResult
     resultCount: number
     isComplete: boolean
@@ -53,21 +86,28 @@ interface QueryResult extends RenderProps {
     jsxElement: JSX.Element
 }
 
-function newFuzzySearch(activeTab: FuzzyTabKey, repoRevision: FuzzyRepoRevision, tabs: FuzzyTabs): FuzzySearch {
+function newFuzzySearch(query: string, activeTab: FuzzyTabKey, scope: FuzzyScope, tabs: FuzzyTabs): FuzzySearch {
     const searches: FuzzySearch[] = []
-    for (const [key, tab] of tabs.entries()) {
-        if (!fuzzyIsActive(activeTab, repoRevision, key)) {
+    for (const tab of tabs.fsms) {
+        if (!tab.isActive(activeTab, scope)) {
             continue
         }
-        if (!tab.fsm) {
-            continue
-        }
-        switch (tab.fsm.key) {
-            case 'indexing':
-                searches.push(tab.fsm.indexing.partialFuzzy)
+        tab.onQuery?.(query) // trigger downloads
+        const fsm = tab.fsm()
+        switch (fsm.key) {
+            case 'downloading': {
+                if (fsm.downloading?.partialFuzzy) {
+                    searches.push(fsm.downloading.partialFuzzy)
+                }
                 break
-            case 'ready':
-                searches.push(tab.fsm.fuzzy)
+            }
+            case 'indexing': {
+                searches.push(fsm.indexing.partialFuzzy)
+                break
+            }
+            case 'ready': {
+                searches.push(fsm.fuzzy)
+            }
         }
     }
     if (searches.length === 1) {
@@ -79,44 +119,95 @@ function newFuzzySearch(activeTab: FuzzyTabKey, repoRevision: FuzzyRepoRevision,
 function fuzzySearch(
     query: string,
     activeTab: FuzzyTabKey,
-    repoRevision: FuzzyRepoRevision,
+    scope: FuzzyScope,
     maxResults: number,
-    tabs: FuzzyTabs
+    tabs: FuzzyTabs,
+    fsmGeneration: number,
+    cache: SearchValueRankingCache
 ): RenderProps {
-    const search = newFuzzySearch(activeTab, repoRevision, tabs)
+    const search = newFuzzySearch(query, activeTab, scope, tabs)
     const start = window.performance.now()
-    const result = search.search({ query, maxResults })
+    const result = search.search({ query, maxResults, cache })
     result.elapsedMilliseconds = window.performance.now() - start
     return {
         result,
         query,
+        fsmGeneration,
         resultCount: Math.min(maxResults, result.links.length),
         isComplete: result.isComplete,
         totalFileCount: search.totalFileCount,
     }
 }
 
-function renderFuzzyResults(props: RenderProps, focusIndex: number, onClickItem: () => void): QueryResult {
+interface ResultProps {
+    fileIndex: number
+    file: HighlightedLinkProps
+    isSelected: boolean
+    onClickItem: () => void
+}
+
+const Result: React.FC<ResultProps> = ({ fileIndex, file, isSelected, onClickItem }) => {
+    const ref = useRef<HTMLLIElement>(null)
+
+    useEffect(() => {
+        if (isSelected && ref.current) {
+            ref.current.scrollIntoView({ block: 'nearest' })
+        }
+    }, [isSelected])
+
+    return (
+        <li
+            // This ID is required to make the `Enter` shortcut work.
+            id={fuzzyResultId(fileIndex)}
+            ref={ref}
+            role="option"
+            aria-selected={isSelected}
+            className={classNames(
+                'd-flex align-items-center py-1 px-3 rounded-0',
+                styles.resultItem,
+                isSelected && styles.focused
+            )}
+        >
+            <HighlightedLink {...file} onClick={mergedHandler(file.onClick, onClickItem)} />
+        </li>
+    )
+}
+
+function renderFuzzyResults(
+    props: RenderProps,
+    focusIndex: number,
+    maxResults: number,
+    initialMaxResults: number,
+    setMaxResults: Dispatch<SetStateAction<number>>,
+    onClickItem: () => void
+): QueryResult {
     if (props.result.links.length === 0) {
         return {
             ...props,
-            jsxElement: <Text>No matches for '{props.query}'</Text>,
+            jsxElement: (
+                // See original comment on FuzzyState.fsmGeneration for details
+                // why we include this arbitrary number here. It's an arbitrary
+                // decision to place the number here, as long as the number is
+                // recorded as a dependency to `renderFuzzyResults` then it
+                // should work OK.
+                <Text data-fsm-generation={props.fsmGeneration} className="p-3 text-center text-muted">
+                    No matches
+                </Text>
+            ),
         }
     }
 
     const linksToRender = props.result.links.slice(0, props.resultCount)
     const element = (
-        <ul id={FUZZY_MODAL_RESULTS} className={styles.results} role="listbox" aria-label="Fuzzy finder results">
+        <ul id={FUZZY_MODAL_RESULTS} role="listbox" aria-label="Fuzzy finder results" className="py-1 px-0 mb-0">
             {linksToRender.map((file, fileIndex) => (
-                <li
-                    id={fuzzyResultId(fileIndex)}
+                <Result
                     key={file.url || file.text}
-                    role="option"
-                    aria-selected={fileIndex === focusIndex}
-                    className={classNames('p-1', fileIndex === focusIndex && styles.focused)}
-                >
-                    <HighlightedLink {...file} onClick={mergedHandler(file.onClick, onClickItem)} />
-                </li>
+                    file={file}
+                    fileIndex={fileIndex}
+                    isSelected={focusIndex === fileIndex}
+                    onClickItem={onClickItem}
+                />
             ))}
         </ul>
     )
@@ -131,6 +222,7 @@ function emptyResults(element: JSX.Element): QueryResult {
         query: '',
         result: { isComplete: true, links: [] },
         resultCount: 0,
+        fsmGeneration: 0,
         isComplete: true,
         totalFileCount: 0,
         jsxElement: element,
@@ -144,13 +236,20 @@ function emptyResults(element: JSX.Element): QueryResult {
  */
 export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyModalProps>> = props => {
     const {
+        initialMaxResults,
         onClose,
-        onClickItem,
+        onClickResult,
+        onClickGoToResultsPage,
+        fsmGeneration,
+        rankingCache,
         query,
         setQuery,
+        tabs,
+        isScopeToggleDisabled,
+        setScope,
+        scope,
         activeTab,
         setActiveTab,
-        repoRevision,
         repoRevision: { repositoryName, revision },
     } = props
     // The "focus index" is the index of the file result that the user has
@@ -167,27 +266,41 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
     // repositories, a generic query like "src" may return thousands of results
     // making DOM rendering slow.  The user can increase this number by clicking
     // on a button at the bottom of the result list.
-    const [maxResults, setMaxResults] = useState(props.initialMaxResults)
+    const [maxResults, setMaxResults] = useState(initialMaxResults)
 
     // Stage 1: compute fuzzy results. Most importantly, this stage does not
     // depend on `focusIndex` so that we avoid re-running the fuzzy finder
     // whenever the user presses up/down to cycle through the results.
     const fuzzySearchResult = useMemo<RenderProps>(
-        () => fuzzySearch(query, activeTab, repoRevision, maxResults, props.tabs),
-        [maxResults, query, activeTab, repoRevision, props.tabs]
+        () => fuzzySearch(query, activeTab, scope, maxResults, tabs, fsmGeneration, rankingCache),
+        [fsmGeneration, maxResults, query, activeTab, scope, tabs, rankingCache]
     )
 
     // Stage 2: render results from the fuzzy matcher.
     const queryResult = useMemo<QueryResult>(() => {
-        if (props.tabs.isDownloading()) {
-            return emptyResults(<Text>Downloading...</Text>)
-        }
-        const fsmErrors = fuzzyErrors(props.tabs, activeTab, repoRevision)
+        const fsmErrors = fuzzyErrors(tabs, activeTab, scope)
         if (fsmErrors.length > 0) {
             return emptyResults(<Text>Error: {JSON.stringify(fsmErrors)}</Text>)
         }
-        return renderFuzzyResults(fuzzySearchResult, focusIndex, onClickItem)
-    }, [activeTab, repoRevision, fuzzySearchResult, focusIndex, onClickItem, props.tabs])
+        return renderFuzzyResults(
+            fuzzySearchResult,
+            focusIndex,
+            maxResults,
+            initialMaxResults,
+            setMaxResults,
+            onClickResult
+        )
+    }, [
+        activeTab,
+        scope,
+        fuzzySearchResult,
+        focusIndex,
+        maxResults,
+        initialMaxResults,
+        setMaxResults,
+        onClickResult,
+        tabs,
+    ])
 
     // Sets the new "focus index" so that it's rounded by the number of
     // displayed filenames.  Cycles so that the user can press-hold the down
@@ -198,7 +311,6 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
             const index = newNumber % queryResult.resultCount
             const nextIndex = index < 0 ? queryResult.resultCount + index : index
             setFocusIndex(nextIndex)
-            document.querySelector(`#fuzzy-modal-result-${nextIndex}`)?.scrollIntoView({ block: 'center' })
         },
         [focusIndex, setFocusIndex, queryResult]
     )
@@ -215,32 +327,44 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
     const onInputKeyDown = useCallback(
         (event: KeyboardEvent<HTMLInputElement>): void => {
             switch (true) {
-                case event.key === 'Escape':
+                case event.key === 'Escape': {
                     onClose()
                     break
-                case event.key === 'n' && event.ctrlKey:
+                }
+                case event.key === 'g' && event.ctrlKey: {
+                    // common Emacs binding to close things
+                    onClose()
+                    break
+                }
+                case event.key === 'n' && event.ctrlKey: {
                     event.preventDefault()
                     setRoundedFocusIndex(1)
                     break
-                case event.key === 'p' && event.ctrlKey:
+                }
+                case event.key === 'p' && event.ctrlKey: {
                     event.preventDefault()
                     setRoundedFocusIndex(-1)
                     break
-                case event.key === 'ArrowDown':
+                }
+                case event.key === 'ArrowDown': {
                     event.preventDefault() // Don't move the cursor to the end of the input.
                     setRoundedFocusIndex(1)
                     break
-                case event.key === 'PageDown':
+                }
+                case event.key === 'PageDown': {
                     setRoundedFocusIndex(PAGE_DOWN_INCREMENT)
                     break
-                case event.key === 'ArrowUp':
+                }
+                case event.key === 'ArrowUp': {
                     event.preventDefault() // Don't move the cursor to the start of input.
                     setRoundedFocusIndex(-1)
                     break
-                case event.key === 'PageUp':
+                }
+                case event.key === 'PageUp': {
                     setRoundedFocusIndex(-PAGE_DOWN_INCREMENT)
                     break
-                case event.key === 'Enter':
+                }
+                case event.key === 'Enter': {
                     if (focusIndex < queryResult.resultCount) {
                         const fileAnchor = document.querySelector<HTMLAnchorElement>(
                             `#fuzzy-modal-result-${focusIndex} .${linkStyle}`
@@ -248,55 +372,68 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
                         fileAnchor?.click()
                     }
                     break
-                case event.key === 'Tab':
-                    if (props.tabs.isOnlyFilesEnabled()) {
-                        break
-                    }
-                    event.preventDefault()
-                    setActiveTab(props.tabs.focusTabWithIncrement(activeTab, event.shiftKey ? -1 : 1))
+                }
                 default:
             }
         },
-        [activeTab, setActiveTab, props, onClose, queryResult, focusIndex, setRoundedFocusIndex]
+        [onClose, queryResult, focusIndex, setRoundedFocusIndex]
     )
 
+    const showTabs = !tabs.isOnlyFilesEnabled()
+    const WrapperComponent = showTabs ? Tabs : 'div'
+    const wrapperComponentProps: TabsProps | {} = showTabs
+        ? {
+              size: 'large',
+              index: tabs.activeIndex(activeTab),
+              onChange: (index: number) => setActiveTab(tabs.focusTab(index)),
+          }
+        : {}
+
     return (
-        <Modal position="center" className={styles.modal} onDismiss={() => onClose()} aria-label="Fuzzy finder">
-            <div className={styles.content}>
-                <div className={styles.header} data-testid="fuzzy-modal-header">
-                    {props.tabs.entries().map(([key, tab]) => (
-                        <div
-                            key={tab.title}
-                            className={classNames(
-                                'mb-0',
-                                styles.tab,
-                                styles.tab,
-                                !props.tabs.isOnlyFilesEnabled() ? styles.tabCenteredText : '',
-                                !props.tabs.isOnlyFilesEnabled() && activeTab === key ? styles.activeTab : ''
-                            )}
-                        >
-                            <H3
-                                role="link"
-                                onClick={() => {
-                                    const input = document.querySelector<HTMLInputElement>('#fuzzy-modal-input')
-                                    if (input) {
-                                        const nextActiveTab = props.tabs.focusNamedTab(key)
-                                        if (nextActiveTab) {
-                                            setActiveTab(nextActiveTab)
-                                            input.focus()
-                                        }
-                                    }
-                                }}
-                            >
-                                {props.tabs.isOnlyFilesEnabled() ? 'Find files' : tab.title}
-                                {!props.tabs.isOnlyFilesEnabled() && tab?.shortcut}
-                            </H3>
-                        </div>
-                    ))}
-                    <Button variant="icon" onClick={() => onClose()} aria-label="Close">
-                        <Icon className={styles.closeIcon} aria-hidden={true} svgPath={mdiClose} />
+        <Modal
+            position="center"
+            className={styles.modal}
+            onDismiss={() => onClose()}
+            aria-label={tabs.underlying[activeTab].title}
+        >
+            <WrapperComponent
+                className="d-flex align-items-stretch flex-column h-100 bg-transparent"
+                {...wrapperComponentProps}
+            >
+                <div
+                    className={classNames(
+                        'd-flex justify-space-between align-items-center pt-2 pb-0 px-3',
+                        styles.header
+                    )}
+                    data-testid="fuzzy-modal-header"
+                >
+                    {showTabs ? (
+                        <TabList className={styles.tabList}>
+                            {tabs.entries().map(([key, tab]) => (
+                                <Tab key={key} className={styles.tab} data-testid={key}>
+                                    {tab.title}
+                                    <span className={styles.shortcut}>
+                                        {tab?.plaintextShortcut && ' ' + tab.plaintextShortcut}
+                                    </span>
+                                </Tab>
+                            ))}
+                        </TabList>
+                    ) : (
+                        <H3>Find files</H3>
+                    )}
+                    <Badge
+                        variant="info"
+                        href="https://community.sourcegraph.com/t/experimental-fuzzy-finder-in-code-search/230"
+                        tooltip="Provide feedback on this experimental feature"
+                        className={styles.experimentalBadge}
+                    >
+                        Experimental
+                    </Badge>
+                    <Button variant="icon" onClick={onClose} aria-label="Close" className={styles.closeButton}>
+                        <Icon aria-hidden={true} svgPath={mdiClose} />
                     </Button>
                 </div>
+                <hr className="mt-0 mb-2 w-100" />
                 <Input
                     id="fuzzy-modal-input"
                     autoComplete="off"
@@ -306,7 +443,7 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
                     aria-autocomplete="list"
                     aria-controls={FUZZY_MODAL_RESULTS}
                     aria-owns={FUZZY_MODAL_RESULTS}
-                    aria-expanded={props.tabs.isDownloading()}
+                    aria-expanded={tabs.isDownloading(activeTab, scope)}
                     aria-activedescendant={fuzzyResultId(focusIndex)}
                     onFocus={input => input.target.select()}
                     className={styles.input}
@@ -319,20 +456,36 @@ export const FuzzyModal: React.FunctionComponent<React.PropsWithChildren<FuzzyMo
                     onKeyDown={onInputKeyDown}
                 />
                 <div className={styles.summary}>
-                    <FuzzyResultsSummary tabs={props.tabs} queryResult={queryResult} />
+                    <FuzzyResultsSummary activeTab={activeTab} scope={scope} tabs={tabs} queryResult={queryResult} />
+                    {!tabs.isOnlyFilesEnabled() && (
+                        <span className={classNames(styles.fuzzyScopeSelector)}>
+                            <ScopeSelect
+                                activeTab={activeTab}
+                                scope={scope}
+                                isScopeToggleDisabled={isScopeToggleDisabled}
+                                setScope={setScope}
+                            />
+                        </span>
+                    )}
                 </div>
-                {!props.tabs.isOnlyFilesEnabled() && <div className={styles.summary}>{searchQuery(props)}</div>}
-                {queryResult.jsxElement}
-                {!queryResult.isComplete && (
-                    <Button
-                        className={styles.showMore}
-                        onClick={() => setMaxResults(maxResults + props.initialMaxResults)}
-                        variant="secondary"
-                    >
-                        Show more
-                    </Button>
+                <hr className="my-0 w-100" />
+                {showTabs ? (
+                    <TabPanels className="flex-1 overflow-auto">
+                        {tabs.entries().map(([key]) => (
+                            <TabPanel key={key}>{activeTab === key && queryResult.jsxElement}</TabPanel>
+                        ))}
+                    </TabPanels>
+                ) : (
+                    <div className="flex-1 overflow-auto">{queryResult.jsxElement}</div>
                 )}
-            </div>
+                <hr className="my-0 w-100" />
+                <div className="d-flex align-items-center w-100 p-3">
+                    <SearchQueryLink {...props} onClickItem={onClickGoToResultsPage} />
+                    <span className="ml-auto mr-2">
+                        <ArrowKeyExplanation />
+                    </span>
+                </div>
+            </WrapperComponent>
         </Modal>
     )
 }
@@ -341,114 +494,168 @@ function plural(what: string, count: number, isComplete: boolean): string {
     return `${count.toLocaleString()}${isComplete ? '' : '+'} ${pluralize(what, count)}`
 }
 
-function searchQueryLink(
-    what: string,
-    query: string,
-    onClick: () => void,
-    shortcut?: KeyboardShortcut,
-    isToggleEnabled?: boolean,
-    isToggleDisabled?: boolean,
-    onClickToggle?: () => void
-): JSX.Element {
-    const searchParams = new URLSearchParams()
-    searchParams.set('q', query)
-    const url = `/search?${searchParams.toString()}`
-    return (
-        <span className={styles.searchQuery}>
-            <Code>
-                <Link to={url} onClick={onClick}>
-                    {query}
-                </Link>{' '}
-            </Code>
-            {what && (
-                <Checkbox
-                    id={`fuzzy-query-${what}`}
-                    checked={isToggleEnabled}
-                    disabled={isToggleDisabled}
-                    label="Search everywhere"
-                    onClick={onClickToggle}
-                />
-            )}
-            {what && shortcut?.keybindings && (
-                <Keybindings uppercaseOrdered={true} keybindings={shortcut.keybindings} />
-            )}
-        </span>
+const ArrowKeyExplanation: React.FunctionComponent = () => (
+    <span className={styles.keyboardExplanation}>
+        Press <kbd>↑</kbd>
+        <kbd>↓</kbd> to navigate through results
+    </span>
+)
+
+interface ScopeSelectProps {
+    activeTab: FuzzyTabKey
+    scope: FuzzyScope
+    setScope: Dispatch<SetStateAction<FuzzyScope>>
+    isScopeToggleDisabled: boolean
+}
+
+const ToggleShortcut: React.FunctionComponent<{ activeTab: FuzzyTabKey }> = ({ activeTab }) => {
+    switch (activeTab) {
+        case 'all': {
+            return <Keybindings uppercaseOrdered={true} keybindings={KEYBOARD_SHORTCUTS.fuzzyFinder.keybindings} />
+        }
+        case 'files': {
+            return <Keybindings uppercaseOrdered={true} keybindings={KEYBOARD_SHORTCUTS.fuzzyFinderFiles.keybindings} />
+        }
+        case 'symbols': {
+            return (
+                <Keybindings uppercaseOrdered={true} keybindings={KEYBOARD_SHORTCUTS.fuzzyFinderSymbols.keybindings} />
+            )
+        }
+        default: {
+            return <></>
+        }
+    }
+}
+
+const ScopeSelect: React.FunctionComponent<ScopeSelectProps> = ({
+    activeTab,
+    scope,
+    setScope,
+    isScopeToggleDisabled,
+}) => (
+    <Select
+        label=""
+        isCustomStyle={true}
+        id="fuzzy-scope"
+        value={scope}
+        selectSize="sm"
+        className={styles.fuzzyScopeSelector}
+        disabled={isScopeToggleDisabled}
+        onChange={value => {
+            switch (value.target.value) {
+                case 'everywhere':
+                case 'repository': {
+                    setScope(value.target.value)
+                    focusFuzzyInput()
+                }
+            }
+        }}
+    >
+        <option value="everywhere">
+            <ToggleShortcut activeTab={activeTab} /> Searching everywhere
+        </option>
+        <option value="repository">
+            <ToggleShortcut activeTab={activeTab} /> Searching in this repository
+        </option>
+    </Select>
+)
+
+const SearchQueryLink: React.FunctionComponent<FuzzyState & { onClickItem: () => void }> = props => {
+    const { onClickItem, scope } = props
+    const searchQueryLink = useCallback(
+        (query: string): JSX.Element => {
+            const searchParams = new URLSearchParams()
+            searchParams.set('q', query)
+            const url = `/search?${searchParams.toString()}`
+            return (
+                <Code>
+                    <Link to={url} onClick={onClickItem}>
+                        {query}
+                    </Link>{' '}
+                </Code>
+            )
+        },
+        [onClickItem]
     )
+    const isScopeEverywhere = scope === 'everywhere'
+    switch (props.activeTab) {
+        case 'symbols': {
+            return searchQueryLink(`type:symbol ${props.query}${isScopeEverywhere ? '' : repoFilter(props)}`)
+        }
+        case 'files': {
+            return searchQueryLink(
+                `type:path ${parseFuzzyFileQuery(props.query).filename}${isScopeEverywhere ? '' : repoFilter(props)}`
+            )
+        }
+        case 'repos': {
+            return searchQueryLink(`type:repo ${props.query}`)
+        }
+        case 'all': {
+            return searchQueryLink(`${props.query}${isScopeEverywhere ? '' : repoFilter(props)}`)
+        }
+        default: {
+            return <></>
+        }
+    }
 }
 
 function repoFilter(state: FuzzyState): string {
     const isGlobal = !state.repoRevision.repositoryName
     const revision = state.repoRevision.revision ? `@${state.repoRevision.revision}` : ''
-    return isGlobal ? '' : `repo:${state.repoRevision.repositoryName}${revision} `
-}
-
-function searchQuery(state: FuzzyState): JSX.Element {
-    switch (state.activeTab) {
-        case 'symbols':
-            return searchQueryLink(
-                'symbols',
-                `${state.isGlobalSymbols ? '' : repoFilter(state)}type:symbol ${state.query}`,
-                state.onClickItem,
-                KEYBOARD_SHORTCUTS.fuzzyFinderSymbols,
-                !state.repoRevision.repositoryName || state.isGlobalSymbols,
-                !state.repoRevision.repositoryName,
-                state.toggleGlobalSymbols
-            )
-        case 'files':
-            return searchQueryLink(
-                'files',
-                `${state.isGlobalFiles ? '' : repoFilter(state)}type:path ${state.query}`,
-                state.onClickItem,
-                KEYBOARD_SHORTCUTS.fuzzyFinderFiles,
-                !state.repoRevision.repositoryName || state.isGlobalFiles,
-                !state.repoRevision.repositoryName,
-                state.toggleGlobalFiles
-            )
-        case 'repos':
-            return searchQueryLink('', `type:repo ${state.query}`, state.onClickItem)
-        default:
-            return <></>
-    }
+    return isGlobal ? '' : ` repo:^${escapeRegExp(state.repoRevision.repositoryName)}$${revision}`
 }
 
 interface FuzzyResultsSummaryProps {
+    activeTab: FuzzyTabKey
+    scope: FuzzyScope
     tabs: FuzzyTabs
     queryResult: QueryResult
 }
 
 const FuzzyResultsSummary: React.FunctionComponent<React.PropsWithChildren<FuzzyResultsSummaryProps>> = ({
+    activeTab,
+    scope,
     tabs,
     queryResult,
-}) => (
-    <>
-        <span data-testid="fuzzy-modal-summary" className={styles.resultCount}>
-            {plural('result', queryResult.resultCount, queryResult.isComplete)} - {indexingProgressBar(tabs)}{' '}
-            {plural('total', queryResult.totalFileCount, true)}
-        </span>
-        <i className="text-muted">
-            <kbd>↑</kbd> and <kbd>↓</kbd> arrow keys browse. <kbd>⏎</kbd> selects.
-        </i>
-    </>
-)
-
-function indexingProgressBar(tabs: FuzzyTabs): JSX.Element {
+}) => {
     let indexedFiles = 0
     let totalFiles = 0
-    for (const [, tab] of tabs.entries()) {
-        if (!tab.fsm) {
+    const downloadingTabs: string[] = []
+    for (const tab of tabs.fsms) {
+        if (!tab.isActive(activeTab, scope)) {
             continue
         }
-        if (tab.fsm.key === 'indexing') {
-            indexedFiles += tab.fsm.indexing.indexedFileCount
-            totalFiles += tab.fsm.indexing.totalFileCount
+        const fsm = tab.fsm()
+        if (fsm.key === 'downloading') {
+            downloadingTabs.push(tab.key)
+        }
+        if (fsm.key === 'indexing') {
+            indexedFiles += fsm.indexing.indexedFileCount
+            totalFiles += fsm.indexing.totalFileCount
         }
     }
-    if (indexedFiles === 0 && totalFiles === 0) {
+    return (
+        <span data-testid="fuzzy-modal-summary" className={styles.resultCount}>
+            {plural('result', queryResult.resultCount, queryResult.isComplete)} out of{' '}
+            {plural('total', queryResult.totalFileCount, true)}
+            <ProgressBar value={indexedFiles} max={totalFiles} />
+            {downloadingTabs.length > 0 && <LoadingSpinner />}
+        </span>
+    )
+}
+
+interface ProgressBarProps {
+    value: number
+    max: number
+}
+
+const ProgressBar: React.FunctionComponent<ProgressBarProps> = ({ value, max }) => {
+    if (max === 0) {
         return <></>
     }
-    const percentage = Math.round((indexedFiles / totalFiles) * 100)
+    const percentage = Math.round((value / max) * 100)
     return (
-        <progress value={indexedFiles} max={totalFiles}>
+        <progress value={value} max={max}>
             {percentage}%
         </progress>
     )
@@ -456,4 +663,10 @@ function indexingProgressBar(tabs: FuzzyTabs): JSX.Element {
 
 function fuzzyResultId(id: number): string {
     return `fuzzy-modal-result-${id}`
+}
+
+function focusFuzzyInput(): void {
+    // Redirect the focus to the fuzzy search bar
+    const input = document.querySelector<HTMLInputElement>('#fuzzy-modal-input')
+    input?.focus()
 }

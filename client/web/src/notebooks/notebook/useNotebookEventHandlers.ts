@@ -3,12 +3,15 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { isMacPlatform as isMacPlatformFunc } from '@sourcegraph/common'
 import { isInputElement } from '@sourcegraph/shared/src/util/dom'
 
-import { BlockDirection, BlockProps } from '..'
+import type { BlockDirection, BlockProps } from '..'
 
-import { Notebook } from '.'
+import type { Notebook } from '.'
 
 interface UseNotebookEventHandlersProps
-    extends Pick<BlockProps, 'isReadOnly' | 'onMoveBlock' | 'onRunBlock' | 'onDeleteBlock' | 'onDuplicateBlock'> {
+    extends Pick<
+        BlockProps,
+        'isReadOnly' | 'onMoveBlock' | 'onRunBlock' | 'onDeleteBlock' | 'onDuplicateBlock' | 'onNewBlock'
+    > {
     notebook: Notebook
     selectedBlockId: string | null
     commandPaletteInputReference: React.RefObject<HTMLInputElement>
@@ -58,6 +61,7 @@ export function useNotebookEventHandlers({
     onRunBlock,
     onDeleteBlock,
     onDuplicateBlock,
+    onNewBlock,
 }: UseNotebookEventHandlersProps): void {
     const onMoveBlockSelection = useCallback(
         (id: string, direction: BlockDirection) => {
@@ -137,6 +141,7 @@ export function useNotebookEventHandlers({
                     const menuItems = document.querySelectorAll<HTMLAnchorElement>(
                         `[data-block-id="${previousBlockId}"] .block-menu [role="menuitem"]`
                     )
+                    // eslint-disable-next-line unicorn/prefer-at
                     menuItems[menuItems.length - 1]?.focus()
                 }
             }
@@ -154,8 +159,7 @@ export function useNotebookEventHandlers({
                     if (
                         (event.key === 'ArrowUp' && !isTopOfBlockVisible(selectedBlockId)) ||
                         (event.key === 'ArrowDown' && !isBottomOfBlockVisible(selectedBlockId)) ||
-                        (event.key === 'ArrowUp' && selectedBlockId === notebook.getFirstBlockId()) ||
-                        (event.key === 'ArrowDown' && selectedBlockId === notebook.getLastBlockId())
+                        (event.key === 'ArrowUp' && selectedBlockId === notebook.getFirstBlockId())
                     ) {
                         return
                     }
@@ -163,8 +167,11 @@ export function useNotebookEventHandlers({
                     // Prevent page scrolling
                     event.preventDefault()
                 }
-            } else if (event.key === 'Enter' && isModifierKeyDown) {
+            } else if (event.key === 'Enter' && isModifierKeyDown && !event.shiftKey) {
                 onRunBlock(selectedBlockId)
+            } else if (event.key === 'Enter' && isModifierKeyDown && event.shiftKey) {
+                event.preventDefault()
+                onNewBlock(selectedBlockId)
             } else if (event.key === 'Delete' || (event.key === 'Backspace' && isModifierKeyDown)) {
                 onDeleteBlock(selectedBlockId)
             } else if (event.key === 'd' && isModifierKeyDown) {
@@ -196,5 +203,6 @@ export function useNotebookEventHandlers({
         onRunBlock,
         onDeleteBlock,
         onDuplicateBlock,
+        onNewBlock,
     ])
 }

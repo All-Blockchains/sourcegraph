@@ -3,99 +3,91 @@ package adminanalytics
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/keegancsmith/sqlf"
 
 	"github.com/sourcegraph/sourcegraph/internal/database"
-	"github.com/sourcegraph/sourcegraph/internal/eventlogger"
 )
 
 type Users struct {
+	Ctx       context.Context
 	DateRange string
 	Grouping  string
 	DB        database.DB
-	Cache     bool
+	Cache     KeyValue
 }
 
-func (s *Users) Activity() (*AnalyticsFetcher, error) {
-	nodesQuery, summaryQuery, err := makeEventLogsQueries(s.DateRange, s.Grouping, []string{})
+func (u *Users) Activity() (*AnalyticsFetcher, error) {
+	nodesQuery, summaryQuery, err := makeEventLogsQueries(u.DateRange, u.Grouping, []string{})
 	if err != nil {
 		return nil, err
 	}
 
 	return &AnalyticsFetcher{
-		db:           s.DB,
-		dateRange:    s.DateRange,
-		grouping:     s.Grouping,
+		db:           u.DB,
+		dateRange:    u.DateRange,
+		grouping:     u.Grouping,
 		nodesQuery:   nodesQuery,
 		summaryQuery: summaryQuery,
 		group:        "Users:Activity",
-		cache:        s.Cache,
+		cache:        u.Cache,
 	}, nil
 }
 
-var (
+const (
 	frequencyQuery = `
 	WITH user_days_used AS (
-		SELECT 
-			CASE WHEN user_id = 0 THEN anonymous_user_id ELSE CAST(user_id AS TEXT) END AS user_id,
-			COUNT(DISTINCT DATE(timestamp)) AS days_used 
-		FROM event_logs
-		WHERE 
-			anonymous_user_id <> 'backend' 
-			AND DATE(timestamp) %s
-			AND name NOT IN (%s)
-		GROUP BY 1
-	),
-	days_used_frequency AS (
-		SELECT days_used, COUNT(*) AS frequency
-		FROM user_days_used
-		GROUP BY 1
-	),
-	days_used_total_frequency AS (
-		SELECT 
-			days_used_frequency.days_used, 
-			SUM(more_days_used_frequency.frequency) AS frequency
-		FROM days_used_frequency
-			LEFT JOIN days_used_frequency AS more_days_used_frequency
-			ON more_days_used_frequency.days_used >= days_used_frequency.days_used
-		GROUP BY 1
-	),
-	max_days_used_total_frequency AS (
-		SELECT MAX(frequency) AS max_frequency
-		FROM days_used_total_frequency
-	)
-	SELECT 
-		days_used, 
-		frequency, 
-		frequency * 100.00 / COALESCE(max_frequency, 1) AS percentage
-	FROM days_used_total_frequency, max_days_used_total_frequency
-	ORDER BY 1 ASC;
+        SELECT
+            CASE WHEN user_id = 0 THEN anonymous_user_id ELSE CAST(user_id AS TEXT) END AS user_id,
+            COUNT(DISTINCT DATE(TIMEZONE('UTC', timestamp))) AS days_used
+        FROM event_logs
+		LEFT OUTER JOIN users ON users.id = event_logs.user_id
+        WHERE
+            DATE(timestamp) %s
+            AND (%s)
+        GROUP BY 1
+    ),
+    days_used_frequency AS (
+        SELECT days_used, COUNT(*) AS frequency
+        FROM user_days_used
+        GROUP BY 1
+    ),
+    days_used_total_frequency AS (
+        SELECT
+            days_used_frequency.days_used,
+            SUM(more_days_used_frequency.frequency) AS frequency
+        FROM days_used_frequency
+            LEFT JOIN days_used_frequency AS more_days_used_frequency
+            ON more_days_used_frequency.days_used >= days_used_frequency.days_used
+        GROUP BY 1
+    ),
+    max_days_used_total_frequency AS (
+        SELECT MAX(frequency) AS max_frequency
+        FROM days_used_total_frequency
+    )
+    SELECT
+        days_used,
+        frequency,
+        frequency * 100.00 / COALESCE(max_frequency, 1) AS percentage
+    FROM days_used_total_frequency, max_days_used_total_frequency
+    ORDER BY 1 ASC;
 	`
 )
 
-func (f *Users) Frequencies(ctx context.Context) ([]*UsersFrequencyNode, error) {
-	cacheKey := fmt.Sprintf("Users:%s:%s", "Frequencies", f.DateRange)
-	if f.Cache == true {
-		if nodes, err := getArrayFromCache[UsersFrequencyNode](cacheKey); err == nil {
-			return nodes, nil
-		}
+func (u *Users) Frequencies(ctx context.Context) ([]*UsersFrequencyNode, error) {
+	cacheKey := fmt.Sprintf("Users:%s:%s", "Frequencies", u.DateRange)
+	if nodes, err := getArrayFromCache[UsersFrequencyNode](u.Cache, cacheKey); err == nil {
+		return nodes, nil
 	}
 
-	_, dateRangeCond, err := makeDateParameters(f.DateRange, f.Grouping, "event_logs.timestamp")
+	_, dateRangeCond, err := makeDateParameters(u.DateRange, u.Grouping, "event_logs.timestamp")
 	if err != nil {
 		return nil, err
 	}
 
-	nonActiveUserEvents := []*sqlf.Query{}
-	for _, name := range eventlogger.NonActiveUserEvents {
-		nonActiveUserEvents = append(nonActiveUserEvents, sqlf.Sprintf("%s", name))
-	}
+	query := sqlf.Sprintf(frequencyQuery, dateRangeCond, sqlf.Join(getDefaultConds(), ") AND ("))
 
-	query := sqlf.Sprintf(frequencyQuery, dateRangeCond, sqlf.Join(nonActiveUserEvents, ","))
-
-	rows, err := f.DB.QueryContext(ctx, query.Query(sqlf.PostgresBindVar), query.Args()...)
+	rows, err := u.DB.QueryContext(ctx, query.Query(sqlf.PostgresBindVar), query.Args()...)
 
 	if err != nil {
 		return nil, err
@@ -114,7 +106,8 @@ func (f *Users) Frequencies(ctx context.Context) ([]*UsersFrequencyNode, error) 
 		nodes = append(nodes, &UsersFrequencyNode{data})
 	}
 
-	if _, err := setArrayToCache(cacheKey, nodes); err != nil {
+	err = setArrayToCache(u.Cache, cacheKey, nodes)
+	if err != nil {
 		return nil, err
 	}
 
@@ -137,42 +130,32 @@ func (n *UsersFrequencyNode) Frequency() float64 { return n.Data.Frequency }
 
 func (n *UsersFrequencyNode) Percentage() float64 { return n.Data.Percentage }
 
-var (
+const (
 	mauQuery = `
-	SELECT 
-		TO_CHAR(timestamp, 'YYYY-MM') AS date,
+	SELECT
+		TO_CHAR(TIMEZONE('UTC', timestamp), 'YYYY-MM') AS date,
 		COUNT(DISTINCT CASE WHEN user_id = 0 THEN anonymous_user_id ELSE CAST(user_id AS TEXT) END) AS count
 	FROM event_logs
-	WHERE 
-		anonymous_user_id <> 'backend' 
-		AND timestamp BETWEEN %s AND %s
-		AND name NOT IN (%s)
+	LEFT OUTER JOIN users ON users.id = event_logs.user_id
+	WHERE
+		timestamp BETWEEN %s AND %s
+    AND (%s)
 	GROUP BY 1
 	ORDER BY 1 ASC
 	`
 )
 
-func (f *Users) MonthlyActiveUsers(ctx context.Context) ([]*MonthlyActiveUsersRow, error) {
+func (u *Users) MonthlyActiveUsers(ctx context.Context) ([]*MonthlyActiveUsersRow, error) {
 	cacheKey := fmt.Sprintf("Users:%s", "MAU")
-	if f.Cache {
-		if nodes, err := getArrayFromCache[MonthlyActiveUsersRow](cacheKey); err == nil {
-			return nodes, nil
-		}
+	if nodes, err := getArrayFromCache[MonthlyActiveUsersRow](u.Cache, cacheKey); err == nil {
+		return nodes, nil
 	}
 
-	now := time.Now()
-	to := now.Format(time.RFC3339)
-	prevMonth := now.AddDate(0, -2, 0) // going back 2 months
-	from := time.Date(prevMonth.Year(), prevMonth.Month(), 1, 0, 0, 0, 0, now.Location()).Format(time.RFC3339)
+	from, to := getTimestamps(2) // go back 2 months
 
-	nonActiveUserEvents := []*sqlf.Query{}
-	for _, name := range eventlogger.NonActiveUserEvents {
-		nonActiveUserEvents = append(nonActiveUserEvents, sqlf.Sprintf("%s", name))
-	}
+	query := sqlf.Sprintf(mauQuery, from, to, sqlf.Join(getDefaultConds(), ") AND ("))
 
-	query := sqlf.Sprintf(mauQuery, from, to, sqlf.Join(nonActiveUserEvents, ","))
-
-	rows, err := f.DB.QueryContext(ctx, query.Query(sqlf.PostgresBindVar), query.Args()...)
+	rows, err := u.DB.QueryContext(ctx, query.Query(sqlf.PostgresBindVar), query.Args()...)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +172,8 @@ func (f *Users) MonthlyActiveUsers(ctx context.Context) ([]*MonthlyActiveUsersRo
 		nodes = append(nodes, &MonthlyActiveUsersRow{data})
 	}
 
-	if _, err := setArrayToCache(cacheKey, nodes); err != nil {
+	err = setArrayToCache(u.Cache, cacheKey, nodes)
+	if err != nil {
 		return nil, err
 	}
 

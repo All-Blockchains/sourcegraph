@@ -1,103 +1,82 @@
 import React from 'react'
 
 import classNames from 'classnames'
-import { AuthProvider } from 'src/jscontext'
+import type { AuthProvider } from 'src/jscontext'
 
-import { ErrorLike } from '@sourcegraph/common'
-import { ExternalServiceKind } from '@sourcegraph/shared/src/graphql-operations'
+import type { ErrorLike } from '@sourcegraph/common'
+import { TelemetryV2Props } from '@sourcegraph/shared/src/telemetry'
 
-import { defaultExternalServices } from '../../../components/externalServices/externalServices'
+import { defaultExternalAccounts } from '../../../components/externalAccounts/externalAccounts'
 
 import { ExternalAccount } from './ExternalAccount'
-import { AccountByServiceID, UserExternalAccount } from './UserSettingsSecurityPage'
+import type { UserExternalAccount } from './UserSettingsSecurityPage'
 
 import styles from './ExternalAccountsSignIn.module.scss'
 
-interface GitHubExternalData {
-    name: string
-    login: string
-    html_url: string
-}
-
-interface GitLabExternalData {
-    name: string
-    username: string
-    web_url: string
-}
-
-export interface NormalizedMinAccount {
+export interface NormalizedExternalAccount {
     name: string
     icon: React.ComponentType<React.PropsWithChildren<{ className?: string }>>
+    authProvider: AuthProvider
     // some data may be missing if account is not setup
-    external?: {
+    external?: UserExternalAccount['publicAccountData'] & {
         id: string
-        userName: string
-        userLogin: string
-        userUrl: string
     }
 }
 
-interface Props {
-    accounts: AccountByServiceID
+interface Props extends TelemetryV2Props {
+    accounts: UserExternalAccount[]
     authProviders: AuthProvider[]
     onDidRemove: (id: string, name: string) => void
     onDidError: (error: ErrorLike) => void
+    onDidAdd: () => void
 }
 
-const getNormalizedAccount = (
-    accounts: Partial<Record<string, UserExternalAccount>>,
+const getNormalizedAccounts = (
+    accounts: UserExternalAccount[],
     authProvider: AuthProvider
-): NormalizedMinAccount => {
-    // kind and type match except for the casing
-    const kind = authProvider.serviceType.toLocaleUpperCase() as ExternalServiceKind
-    const account = accounts[authProvider.serviceID]
-    const accountExternalData = account?.accountData
-
-    // get external service icon and name as they will match external account
-    const { icon, title: name } = defaultExternalServices[kind]
-
-    let normalizedAccount: NormalizedMinAccount = {
-        icon,
-        name,
+): NormalizedExternalAccount[] => {
+    if (
+        authProvider.serviceType === 'builtin' ||
+        authProvider.serviceType === 'http-header' ||
+        authProvider.serviceType === 'sourcegraph-operator'
+    ) {
+        return []
     }
 
-    // if external account exists - add user specific data to normalizedAccount
-    if (account && accountExternalData) {
-        switch (kind) {
-            case 'GITHUB':
-                {
-                    const githubExternalData = accountExternalData as GitHubExternalData
-                    normalizedAccount = {
-                        ...normalizedAccount,
-                        external: {
-                            id: account.id,
-                            // map github fields
-                            userName: githubExternalData.name,
-                            userLogin: githubExternalData.login,
-                            userUrl: githubExternalData.html_url,
-                        },
-                    }
-                }
-                break
-            case 'GITLAB':
-                {
-                    const gitlabExternalData = accountExternalData as GitLabExternalData
-                    normalizedAccount = {
-                        ...normalizedAccount,
-                        external: {
-                            id: account.id,
-                            // map gitlab fields
-                            userName: gitlabExternalData.name,
-                            userLogin: gitlabExternalData.username,
-                            userUrl: gitlabExternalData.web_url,
-                        },
-                    }
-                }
-                break
+    const { icon, title: name } = defaultExternalAccounts[authProvider.serviceType]
+
+    const normalizedAccounts: NormalizedExternalAccount[] = []
+    const providerAccounts = accounts.filter(
+        acc => acc.clientID === authProvider.clientID && acc.serviceID === authProvider.serviceID
+    )
+    for (const providerAccount of providerAccounts || []) {
+        const normalizedAccount: NormalizedExternalAccount = {
+            icon,
+            name,
+            authProvider,
         }
+
+        if (providerAccount?.publicAccountData) {
+            normalizedAccount.external = {
+                id: providerAccount.id,
+                ...providerAccount.publicAccountData,
+            }
+        }
+
+        normalizedAccounts.push(normalizedAccount)
     }
 
-    return normalizedAccount
+    if (normalizedAccounts.length === 0) {
+        return [
+            {
+                icon,
+                name,
+                authProvider,
+            },
+        ]
+    }
+
+    return normalizedAccounts
 }
 
 export const ExternalAccountsSignIn: React.FunctionComponent<React.PropsWithChildren<Props>> = ({
@@ -105,34 +84,29 @@ export const ExternalAccountsSignIn: React.FunctionComponent<React.PropsWithChil
     authProviders,
     onDidRemove,
     onDidError,
-}) => (
-    <>
-        {authProviders && (
-            <ul className="list-group">
-                {authProviders.map(authProvider => {
-                    // if auth provider for this account doesn't exist -
-                    // don't display the account as an option
-                    if (authProvider && authProvider.serviceType !== 'builtin') {
-                        const normAccount = getNormalizedAccount(accounts, authProvider)
-
-                        return (
-                            <li
-                                key={authProvider.serviceID}
-                                className={classNames('list-group-item', styles.externalAccount)}
-                            >
-                                <ExternalAccount
-                                    account={normAccount}
-                                    authProvider={authProvider}
-                                    onDidRemove={onDidRemove}
-                                    onDidError={onDidError}
-                                />
-                            </li>
-                        )
-                    }
-
-                    return null
-                })}
-            </ul>
-        )}
-    </>
-)
+    onDidAdd,
+    telemetryRecorder,
+}) => {
+    const accountGroups = authProviders.map(authProvider => ({
+        authProvider,
+        accounts: getNormalizedAccounts(accounts, authProvider),
+    }))
+    const accountsList = accountGroups
+        .flatMap(group => group.accounts)
+        .map(account => (
+            <li
+                key={account.external ? account.external.id : account.authProvider.serviceID}
+                className={classNames('list-group-item', styles.externalAccount)}
+            >
+                <ExternalAccount
+                    telemetryRecorder={telemetryRecorder}
+                    account={account}
+                    authProvider={account.authProvider}
+                    onDidRemove={onDidRemove}
+                    onDidError={onDidError}
+                    onDidAdd={onDidAdd}
+                />
+            </li>
+        ))
+    return <>{authProviders && <ul className="list-group">{accountsList}</ul>}</>
+}

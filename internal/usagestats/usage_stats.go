@@ -152,7 +152,16 @@ func GetByUserID(ctx context.Context, db database.DB, userID int32) (*types.User
 func GetUsersActiveTodayCount(ctx context.Context, db database.DB) (int, error) {
 	now := timeNow().UTC()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	return db.EventLogs().CountUniqueUsersAll(ctx, today, today.AddDate(0, 0, 1), &database.CountUniqueUsersOptions{CommonUsageOptions: database.CommonUsageOptions{ExcludeSystemUsers: true, ExcludeSourcegraphAdmins: true}})
+	return db.EventLogs().CountUniqueUsersAll(
+		ctx,
+		today,
+		today.AddDate(0, 0, 1),
+		&database.CountUniqueUsersOptions{CommonUsageOptions: database.CommonUsageOptions{
+			ExcludeSystemUsers:          true,
+			ExcludeSourcegraphAdmins:    true,
+			ExcludeSourcegraphOperators: true,
+		}},
+	)
 }
 
 // ListRegisteredUsersToday returns a list of the registered users that were active today.
@@ -224,20 +233,14 @@ func activeUsers(ctx context.Context, db database.DB, dayPeriods, weekPeriods, m
 
 	return db.EventLogs().SiteUsageMultiplePeriods(ctx, timeNow().UTC(), dayPeriods, weekPeriods, monthPeriods, &database.CountUniqueUsersOptions{
 		CommonUsageOptions: database.CommonUsageOptions{
-			ExcludeSystemUsers:       true,
-			ExcludeNonActiveUsers:    true,
-			ExcludeSourcegraphAdmins: true,
+			ExcludeSystemUsers:          true,
+			ExcludeNonActiveUsers:       true,
+			ExcludeSourcegraphAdmins:    true,
+			ExcludeSourcegraphOperators: true,
 		},
 	})
 }
 
 func minIntOrZero(a, b int) int {
-	min := b
-	if a < b {
-		min = a
-	}
-	if min < 0 {
-		return 0
-	}
-	return min
+	return max(min(a, b), 0)
 }
